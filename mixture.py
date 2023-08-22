@@ -32,9 +32,7 @@ np.random.seed()  # Set NumPy random seed
 REVERT = False
 
 ###### Global parameters ######
-"""
-Check literature for these values?
-"""
+
 p_mut = 0.14  # probability of mutation per division round
 p_CDR = 0.85  # probability of mutation in the CDR region
 p_CDR_lethal = 0.30  # probability that a CDR mutation is lethal
