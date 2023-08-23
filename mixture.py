@@ -122,8 +122,6 @@ condp[np.isnan(condp)] = 0.0
 shm_condp = condp
 
 
-###### B cell clone class ######
-# FIX (Revise to that of vectorized CG) #
 class BCell:
     # !! FIX !! #
     def __init__(self, residues, nbs, **kwargs):
@@ -217,14 +215,6 @@ class BCell:
         self.residues = residues
         self.nbs = nbs
         self.E = np.array(self.E).reshape((1,))
-        # self.cycleconc = dicconc[2]/10
-
-    """ Return a new copy of the input BCell"""
-
-    # @classmethod
-    # def clone(cls, residues, nbs, nb_CDR_mut):
-    #     kwargs = {'nb_CDR_mut': nb_CDR_mut}
-    #     return cls(residues, nbs, n_clones=1, **kwargs)
 
 
     def clone(self, residues, nbs):
@@ -234,18 +224,10 @@ class BCell:
         if isinstance(nbs, int):
             nbs = np.repeat(nbs, residues.shape[0])
             E = np.repeat(self.E[0], residues.shape[0])
-            # print("E in clone is:", E)
-            # print("self.E in clone is: ", self.E)
 
         self.residues = np.vstack([self.residues, residues])
-        # print("self.residues.shape[0]:", residues.shape[0])
-        # print("self.E.shape", self.E.shape)
-        # print("E var shape", E.shape)
-        # print('self.residues in clone() = ', self.residues)
         self.nbs = np.concatenate([self.nbs, nbs])
         self.E = np.concatenate([self.E, E])
-        # print("cloned residues: ", residues)
-        # print("ending self.E:", self.E)
         return self
 
     # Might be unnecessary
@@ -292,10 +274,6 @@ class BCell:
     def calculate_breadth(self, testpanel, threshold, panelSize):
         test_energies = np.inner(testpanel, self.residues)
         return np.mean(test_energies > threshold, axis=0)
-
-    def update_antigens(self, newAntigens):
-        self.antigens = deepcopy(newAntigens)
-        self.nb_Ag = np.shape(newAntigens)[0]
 
     def mutate_CDR(self, Ag, n_clones):
 
@@ -609,14 +587,14 @@ class GerminalCenter(object):
         self.nb_cycle_max = 99
         self.n_injections = 0  # Number of injections so far
 
-    def injection(self, Ag, conc):
+    def injection(self, dicAgs, dicAbs):
         self.n_injections += 1
 
         done = False
 
         # Set the antigens and concentrations
-        self.Ag = Ag
-        self.conc = conc
+        self.Ag = dicAgs[0]['seq']
+        self.conc = dicAgs[0]['conc']
 
         # Second injection onward, use memory founders
         if self.n_injections > 1:
@@ -756,7 +734,6 @@ class GerminalCenter(object):
         else:
             self.memory_cells = new_memory_cells  # Always add memory cells
 
-    # Fix (Revert & function name consistency) #
     def pick_memCells(self):
 
         # For simplicity, memory cells are chosen with replacement.
@@ -825,23 +802,19 @@ class GerminalCenter(object):
         return done, exceed_size_flag
 
 
-class Body(object):
+class AffinityMaturation(object):
 
     def __init__(self, n_GCs, debug=0):
         self.gcs = [GerminalCenter(body=self, debug=debug) for _ in range(n_GCs)]
 
-    def injection(self, Ab, conc):
+    def injection(self, Ag, conc):
         # Call injection for each GC
-        dones = [gc.injection(Ab, conc) for gc in self.gcs]
+        dones = [gc.injection(Ag, conc) for gc in self.gcs]
 
         return all(dones)
 
 
 ###### Main functions ######
-
-
-def usage():
-    print("")
 
 def main(verbose=False):
 
@@ -854,7 +827,7 @@ def main(verbose=False):
     kwargs = {
         ''
     }
-    simulation = Body(n_GCs=n_GCs, debug=0)
+    simulation = AffinityMaturation(n_GCs=n_GCs, debug=0)
     for i in range(n_injections):
         print("Starting injection {} of {}".format(i+1, n_injections))
         done = simulation.injection(Ag[time_Steps[i]], conc[time_Steps[i]])
@@ -882,24 +855,6 @@ def selectObservations(observations, keys, values):
 def find_nb_Ag(antigens):
     nb_Ag = np.shape(antigens)[0]
     return nb_Ag
-
-
-def print_update(current, end, bar_length=20):
-    """ Print an update of the simulation status. h/t Aravind Voggu on StackOverflow. """
-
-    percent = float(current) / end
-    dash = ''.join(['-' for k in range(int(round(percent * bar_length) - 1))]) + '>'
-    space = ''.join([' ' for k in range(bar_length - len(dash))])
-
-    sys.stdout.write("\rSimulating: [{0}] {1}%\n".format(dash + space, int(round(percent * 100))))
-    sys.stdout.flush()
-
-
-def updating_antigens(B_cells, cycleAntigens):
-    """ The antigens for all B cells are updated with the beginning of a new cycle. """
-    for b in B_cells:
-        b.update_antigens(cycleAntigens)
-    return B_cells
 
 
 def pick_memCells_for_new_GC(memory_cells, nb_GC_founders):
