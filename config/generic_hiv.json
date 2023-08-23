@@ -1,0 +1,93 @@
+{
+    "experiment" : {
+        // Logging flag (default true, but for debugging)
+        "logging" : true,
+
+        // Experiment name for logging
+        "exp_name" : "test",
+
+        // Number of injections
+        "num_injections" : 1,
+
+        // Number of GCs (default 1 for efficiency)
+        "num_GCs" : 1
+
+    },
+    // What pathogen to evolve against
+    "pathogen" : "hiv",
+    
+    // what scoring function to use (ppdg vs ppdx)
+    "scoring_function" : "ppdg",
+    
+    // GC Duration
+    "time_steps" : [2, 80, 160, 600, 800],
+    
+    // multi-injection flag?
+    "flag" : true,
+
+    "antigen" : {
+        // list of antigen names
+        "antigen_names" : ["BG505"],
+
+        // list of antigen sequences (in AAs)
+        "antigen_seqs" : ["KENLWVTVYYGVPVWKDAETTLFCASDAKAYETEKHNVWATHACVPTDPNPQEIHLENVTEEFNMWKNNMVEQMHTDIISLWDQSLKPCVKLTPLCVTLQCTNVTNNITDDMRGELKNCSFNMTTELRDKKQKVYSLFYRLDVVQINENQGNRSNNSNKEYRLINCNTSAITQACPKVSFEPIPIHYCAPAGFAILKCKDKKFNGTGPCPSVSTVQCTHGIKPVVSTQLLLNGSLAEEEVMIRSENITNNAKNILVQFNTPVQINCTRPNNNTRKSIRIGPGQAFYATGDIIGDIRQAHCNVSKATWNETLGKVVKQLRKHFGNNTIIRFANSSGGDLEVTTHSFNCGGEFFYCNTSGLFNSTWISNTSVQGSNSTGSNDSITLPCRIKQIINMWQRIGQAMYAPPIQGVIRCVSNITGLILTRDGGSTNSTTETFRPGGGDMRDNWRSELYKYKVVKIEPLGVAPTRAKRR"],
+        
+        // number of antigens (should = len(antigen_seqs))
+        "num_antigens" : 1,
+        
+        // cocktail or sequential
+        "cocktail" : false,
+       
+        // concentration for single/cockatil/sequential
+        // This should ideally just be one parameter
+        "concentration" : [0.25, 0.20, 0.85]
+    },
+
+    "antibody" : {
+        // Name of GL/Parental antibody sequence
+        "antibody_names" : ["VRC01"],
+        
+        // Antibody sequences in nucleotides
+        "antibody_seq" : {
+            "FRWH1_nt" : "CAGGTGCAGCTGGTGCAGTCTGGGGCTGAGGTGAAGAAGCCTGGGGCCTCAGTGAAGGTCTCCTGCAAGGCTTCTGGATACACCTTC",
+            "CDRH1_nt" : "ACCGGCTACTATATGCAC",
+            "FRWH2_nt" : "TGGGTGCGACAGGCCCCTGGACAAGGGCTTGAGTGGATGGGA",
+            "CDRH2_nt" : "TGGATCAACCCTAACAGTGGTGGCACAAACTATGCACAGAAGTTTCAGGGC",
+            "FRWH3_nt" : "AGGGTCACCATGACCAGGGACACGTCCATCAGCACAGCCTACATGGAGCTGAGCAGGCTGAGATCTGACGACACGGCCGTGTATTACTGTGCGAGA",
+            "CDRH3_nt" : "GGAAAAAACTGTGATTACAATTGGGACTTCCAGCACTGGGGCCAGGGCACCCTGGTCACC",
+            "FRWL1_nt" : "GTGTTGACACAGTCTCCAGCCACCCTGTCTTTGTCTCCAGGGGAAAGAGCCACCCTCTCCTGC",
+            "CRDL1_nt" : "AGGGCCAGTCAGAGTGTTAGCAGCTACTTAGCC",
+            "FRWL2_nt" : "TGGTACCAACAGAAACCTGGCCAGGCTCCCAGGCTCCTCATCTAT",
+            "CDRL2_nt" : "GATGCATCCAACAGGGCCACT",
+            "FRWL3_nt" : "GGCATCCCAGCCAGGTTCAGTGGCAGTGGGTCTGGGACAGACTTCACTCTCACCATCAGCAGCCTAGAGCCTGAAGATTTTGCAGTTTATTACTGT",
+            "CDRL3_nt" : "CAGCAGTATGAATTTTTTGGCCAGGGGACCAAGTTAGAA"
+        },
+        // Number of GC founders in first injection
+        "num_GC_founders_injection_1" : 1
+    },
+    // Global parameters from mixture.py
+    "maturation_parameters" : {
+        
+        // mutational probabilities
+        "p_mut" : 0.14,
+        "p_CDR" : 0.85,
+        
+        // p_CDR_affect will calculated be in __init__.py
+        "p_CDR_lethal" : 0.30,
+        "p_CDR_silent" : 0.00,
+        // p_exit will be calculated in __init__.py
+        "p_recycle" : 0.70,
+        
+        // GC founders for injections > 1
+        "num_GC_founders" : 2,
+        "epsilon" : 1e-16,
+        "activation_energy" : -9.011959719155849,
+        "nb_trial" : 1,
+        
+        // 3.5 / 0.6 = 5.83333
+        "energy_scale" : 5.83333333333,
+        "help_cutoff" : 0.70
+
+    }
+
+}
