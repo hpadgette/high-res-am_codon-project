@@ -14,6 +14,7 @@ def run_AM(config):
     # Run the simulation
     simulation.run()
     
+    
 
 
 @click.command()
@@ -23,7 +24,7 @@ def main(config, exp_name):
 
     config = config if config != '' else None
     config = exp_config(config)
-
+    
     if exp_name is not None:
         config['exp_name'] = exp_name
 

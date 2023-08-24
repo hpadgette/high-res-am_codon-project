@@ -7,10 +7,13 @@
         "exp_name" : "test",
 
         // Number of injections
-        "num_injections" : 1,
+        "num_injections" : 2,
 
         // Number of GCs (default 1 for efficiency)
-        "num_GCs" : 1
+        "num_GCs" : 1,
+        
+        // Revert flag (default false; keep false!!)
+        "revert" : false
 
     },
     // What pathogen to evolve against

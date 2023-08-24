@@ -17,11 +17,6 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-# from mpi4py import MPI
-
-# comm = MPI.COMM_WORLD
-# rank = comm.Get_rank()
-
 np.random.seed()  # Set NumPy random seed
 
 # Set to True to turn off behavior changes since BCell refactor
