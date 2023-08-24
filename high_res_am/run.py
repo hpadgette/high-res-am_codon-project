@@ -2,7 +2,7 @@ import os
 import click
 from config import exp_config
 from datetime import datetime
-from mixture import AffinityMaturation
+from affinity import AffinityMaturation
 from copy import deepcopy
 
 def run_AM(config):
@@ -10,7 +10,7 @@ def run_AM(config):
     Run the affinity maturation algorithm
     """
     simulation = AffinityMaturation(deepcopy(config))
-
+    
     # Run the simulation
     simulation.run()
     
@@ -30,9 +30,10 @@ def main(config, exp_name):
 
     timestamp = datetime.now().strftime("_%Y-%m-%d-%H%M%S")
     if config['experiment']['logging']:
-        config['log_path'] = os.path.join('log/', config['exp_name'], timestamp)
+        config['log_path'] = os.path.join('log/', config['experiment']['exp_name'], timestamp)
     else:
         config['log_path'] = None
 
     run_AM(config)
 
+if __name__ == '__main__': main()

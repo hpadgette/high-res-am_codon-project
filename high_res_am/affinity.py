@@ -22,16 +22,17 @@ class AffinityMaturation():
 
     def __init__(self, config=None):
         self.config = config
-
+        print("hello!!")
     def setup(self):
         
-        self.num_GCs = self.config['experiment']['num_gcs']
+        self.num_GCs = self.config['experiment']['num_GCs']
         # Create logging directory and files
         self.output_files = self.make_outputs()
+        self.debug = self.config['experiment']['debug']
         self.gcs = self.make_gcs()
         self.dicAbs, self.dicAgs = self.build_Ab_Ag()
         self.n_injections = self.config['experiment']['num_injections']
-        self.debug = self.config['experiment']['debug']
+        
         
     
     def injection(self):
