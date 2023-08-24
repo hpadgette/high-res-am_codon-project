@@ -1,76 +1,66 @@
 {
-    // What pathogen to evolve against
+    "experiment" : {
+    
+        "logging" : true,
+
+    
+        "exp_name" : "test",
+
+    
+        "num_injections" : 2
+
+    },
+    
     "pathogen" : "hiv",
-    // what scoring function to use (ppdg vs ppdx)
+    
+    
     "scoring_function" : "ppdg",
-    // do you want to log (default True, but here for debugging)
-    "logging" : true,
-    // GC Duration
+    
+    
     "time_steps" : [2, 80, 160, 600, 800],
-    // multi-injection flag?
+    
+    
     "flag" : true,
 
     "antigen" : {
-        // list of antigen sequences (in AAs)
-        "antigen_seqs" : [""],
-        // number of antigens (should = len(antigen_seqs))
+        
+        "antigen_names" : ["BG505"],
+
+        
+        "antigen_seqs" : ["KENLWVTVYYGVPVWKDAETTLFCASDAKAYETEKHNVWATHACVPTDPNPQEIHLENVTEEFNMWKNNMVEQMHTDIISLWDQSLKPCVKLTPLCVTLQCTNVTNNITDDMRGELKNCSFNMTTELRDKKQKVYSLFYRLDVVQINENQGNRSNNSNKEYRLINCNTSAITQACPKVSFEPIPIHYCAPAGFAILKCKDKKFNGTGPCPSVSTVQCTHGIKPVVSTQLLLNGSLAEEEVMIRSENITNNAKNILVQFNTPVQINCTRPNNNTRKSIRIGPGQAFYATGDIIGDIRQAHCNVSKATWNETLGKVVKQLRKHFGNNTIIRFANSSGGDLEVTTHSFNCGGEFFYCNTSGLFNSTWISNTSVQGSNSTGSNDSITLPCRIKQIINMWQRIGQAMYAPPIQGVIRCVSNITGLILTRDGGSTNSTTETFRPGGGDMRDNWRSELYKYKVVKIEPLGVAPTRAKRR"],
+        
+        
         "num_antigens" : 1,
-        // cocktail or sequential
+        
+        
         "cocktail" : false,
-        // concentration for single/cockatil/sequential
-        // This should ideally just be one parameter
-        "concentration" : [1, 2, 3],
-        "conc_single" : 0.01,
-        "conc_cocktail" : 1.10,
-        "conc_seq" : [0.25, 0.20, 0.85]
+       
+        
+        "concentration" : [0.25, 0.20, 0.85]
     },
 
-    "antibody" : {
-        // Name of GL/Parental antibody sequence
-        "antibody_name" : "",
-        // Antibody sequences in nucleotides
-        "antibody_seq" : {
-            "FRWH1_nt" : "",
-            "CDRH1_nt" : "",
-            "FRWH2_nt" : "",
-            "CDRH2_nt" : "",
-            "FRWH3_nt" : "",
-            "CDRH3_nt" : "",
-            "FRWL1_nt" : "",
-            "CRDL1_nt" : "",
-            "FRWL2_nt" : "",
-            "CDRL2_nt" : "",
-            "FRWL3_nt" : "",
-            "CDRL3_nt" : ""
-        },
-        // Number of GC founders in first injection
-        "num_GC_founders_injection_1" : 1
-    },
-    // Global parameters from mixture.py
+
     "maturation_parameters" : {
-        // mutational probabilities
+        
+
         "p_mut" : 0.14,
         "p_CDR" : 0.85,
-        // p_CDR_affect will calculated be in config.py
+        
+
         "p_CDR_lethal" : 0.30,
         "p_CDR_silent" : 0.00,
-        // p_exit will be calculated in config.py
+
         "p_recycle" : 0.70,
-        // GC founders for injections > 1
-        "num_GC_founders" : 2,
+        
+
+        "num_GC_founders" : 1,
         "epsilon" : 1e-16,
         "activation_energy" : -9.011959719155849,
         "nb_trial" : 1,
-        // 3.5 / 0.6 = 5.83333
-        "energy_scale" : 5.83333333333,
-        "help_cutoff" : 0.70,
-
-        // from main() in mixture.py (may not be necessary?)
         
-        // Number of GCs, should be 1 due to computational expense
-        "n_GCs" : 1,
-        // number of injections
-        "n_injections" : 1
+
+        "energy_scale" : 5.83333333333,
+        "help_cutoff" : 0.70
 
     }
 

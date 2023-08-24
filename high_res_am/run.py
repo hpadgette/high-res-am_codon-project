@@ -1,6 +1,6 @@
 import os
 import click
-from config import exp_config
+from config import get_exp_config
 from datetime import datetime
 from affinity import AffinityMaturation
 from copy import deepcopy
@@ -23,7 +23,7 @@ def run_AM(config):
 def main(config, exp_name):
 
     config = config if config != '' else None
-    config = exp_config(config)
+    config = get_exp_config(config)
     
     if exp_name is not None:
         config['exp_name'] = exp_name
