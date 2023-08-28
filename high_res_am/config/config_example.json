@@ -7,14 +7,15 @@
         "exp_name" : "test",
 
     
-        "num_injections" : 2
+        "num_injections" : 2,
+        "scoring_function" : "ppdg"
 
     },
     
     "pathogen" : "hiv",
     
     
-    "scoring_function" : "ppdg",
+    
     
     
     "time_steps" : [2, 80, 160, 600, 800],

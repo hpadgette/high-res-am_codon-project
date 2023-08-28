@@ -9,16 +9,18 @@
 
         "num_GCs" : 1,
         
-        "revert" : false,
+        
 
-        "debug" : 0
+        "debug" : 0,
+
+        "scoring_function" : ""
 
     },
     
     "pathogen" : "",
     
     
-    "scoring_function" : "",
+    
     
     
     "time_steps" : [2, 80, 160, 600, 800],
@@ -82,7 +84,8 @@
         "num_GC_founders" : 1,
         "epsilon" : 1e-16,
         "activation_energy" : -9.011959719155849,
-        "nb_trial" : 1
+        "nb_trial" : 1,
+        "revert" : false
 
     }
 
