@@ -2,7 +2,7 @@ import os
 import json
 from copy import deepcopy
 import collections
-
+import numpy as np
 
 def get_generic_config(pathogen):
     """
@@ -45,8 +45,10 @@ def get_exp_config(exp_config=None):
     pathogen_config = get_generic_config(pathogen)
     
     final_config = safe_merge_dicts(pathogen_config, exp_config)
-    final_config['maturation_parameters']['p_CDR_affect'] = 1 - final_config['maturation_parameters']['p_CDR_silent'] - final_config['maturation_parameters']['p_CDR_lethal']
-    final_config['maturation_parameters']['p_exit'] = 1 - final_config['maturation_parameters']['p_recycle']
+    final_config['maturation_parameters']['p_CDR_affect'] = np.round(1 - final_config['maturation_parameters']['p_CDR_silent'] - final_config['maturation_parameters']['p_CDR_lethal'], 
+                                                                     decimals=3)
+    final_config['maturation_parameters']['p_exit'] = np.round(1 - final_config['maturation_parameters']['p_recycle'], 
+                                                               decimals=3)
     return final_config
 
 def safe_merge_dicts(base_dict, update_dict):
