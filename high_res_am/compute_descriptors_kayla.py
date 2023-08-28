@@ -42,14 +42,17 @@ def main(ag, ab):
     name = hashlib.md5(cpxseq.encode()).hexdigest()
     print('Directory name is', name)
     dg = ppdg.eval_pkl('pathogen/hiv/regression-hiv-rfha-veryfast-6224.pkl', '%s/%s' % (ag, ab), (1,2), 'pathogen/hiv/tpl_5fyj.pdb', name=None, nmodels=1, ncores=1)
+    # dg = ppdg.eval_pkl('pathogen/hiv/regression-hiv-rfha-veryfast-6224.pkl', '%s/%s' % (ag, ab), (1,2), 'pathogen/hiv/tpl_5fyj.pdb', name=None, nmodels=10, ncores=1)
     print('Binding affinity is', dg)
     os.system(". ./RMDIR.sh")
     #ppdg.clean()
     os.mkdir('temp_dir')
     os.system('mv %s ./temp_dir' %(name))
-    if not os.path.exists('/pl/active/rdi_data/hiv/master_dir/%s' %(name)):
+    if not os.path.exists('/rc_scratch/jofa3453/hiv/master_dir/%s' %(name)):
+    # if not os.path.exists('/pl/active/rdi_data/hiv/master_dir/%s' %(name)):
         if os.path.isfile('./temp_dir/%s/descriptors.json' %(name)):
-            shutil.copytree('./temp_dir/%s' %(name), '/pl/active/rdi_data/hiv/master_dir/%s' %(name))
+            # shutil.copytree('./temp_dir/%s' %(name), '/pl/active/rdi_data/hiv/master_dir/%s' %(name))
+            shutil.copytree('./temp_dir/%s' %(name), '/rc_scratch/jofa3453/hiv/master_dir/%s' %(name))
     shutil.rmtree('temp_dir')
     return dg
 
