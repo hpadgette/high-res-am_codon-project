@@ -20,7 +20,6 @@
     "time_steps" : [2, 80, 160, 600, 800],
     
     
-    "flag" : true,
 
     "antigen" : {
         
@@ -36,7 +35,7 @@
         "cocktail" : false,
        
         
-        "concentration" : [0.25, 0.20, 0.85]
+        "concentration" : [0.50, 0.20, 0.85]
     },
 
 
@@ -46,6 +45,7 @@
         "p_mut" : 0.14,
         "p_CDR" : 0.85,
         
+        "flag" : 1,
 
         "p_CDR_lethal" : 0.30,
         "p_CDR_silent" : 0.00,
@@ -53,12 +53,12 @@
         "p_recycle" : 0.70,
         
 
-        "num_GC_founders" : 1,
+        "num_GC_founders" : [1, 2, 3],
         "epsilon" : 1e-16,
         "activation_energy" : -9.011959719155849,
         "nb_trial" : 1,
         
-
+        "pop_size" : 5,
         "energy_scale" : 5.83333333333,
         "help_cutoff" : 0.70
 
