@@ -14,6 +14,7 @@ import random
 from collections import Counter
 from collections import defaultdict
 import warnings
+from score import scoring_function
 warnings.filterwarnings("ignore")
 
 np.random.seed()
@@ -21,8 +22,8 @@ np.random.seed()
 class GerminalCenter(object):
 
     def __init__(self, Ab, Ags, dicAgs, dicAbs, 
-                 revert, maturation_params, 
-                 debug=0):
+                 revert, maturation_params,
+                 score_config, debug=0):
         
         """ Initialize GC-specific variables. """
         self.debug = debug
@@ -41,6 +42,7 @@ class GerminalCenter(object):
         self.cycle_number = 2
         self.nb_cycle_max = 99
         self.help_cutoff = self.maturation_params['help_cutoff']
+        self.score_config = score_config
         self.gc_dict = deepcopy(self.__dict__)
         self.memory_cells = BCell(self.gc_dict, residues=None, nbs=1)
         self.memory_founders = BCell(self.gc_dict, residues=None, nbs=1)
@@ -335,6 +337,8 @@ class BCell():
             condp = p / ps
         condp[np.isnan(condp)] = 0.0
         self.shm_condp = condp
+        
+        self.scoring_function = scoring_function(self.score_config).__call__
 
         if 'nb_CDR_mut' in kwargs:
             self.nb_CDR_mut = kwargs['nb_CDR_mut']
@@ -353,6 +357,7 @@ class BCell():
                 self.E = self.energy(self.dicAgs[self.Ags[0]]['seq'][0], self.cycle_number, self.residues)
             else:
                 self.E = np.inf
+        
         #     # assuming single Ag case!!!!### ###FIX###
 
         # if 'breadth' in kwargs:
@@ -435,9 +440,11 @@ class BCell():
         # Format for chains in Modeller
         Ab = Ab_aa[0:118] + '/' + Ab_aa[118:]
         if "*" not in Ab_aa:
-            dg = compute_descriptors_kayla.main(Ag, Ab)
+            # dg = compute_descriptors_kayla.main(Ag, Ab)
+            dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab)
         else:
             dg = 100
+        print("deltaG: ", dg)
         return dg
 
     

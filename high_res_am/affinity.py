@@ -4,6 +4,8 @@ import sys
 from lymph_node import BCell, GerminalCenter
 import json
 from timeit import default_timer as timer
+from score import scoring_function
+
 
 class AffinityMaturation:
     """
@@ -29,12 +31,14 @@ class AffinityMaturation:
         # Create logging directory and files
         self.output_files = self.make_outputs()
         self.dicAbs, self.dicAgs = self.build_Ab_Ag()
+        self.make_scoring_function()
         self.Abs = list(self.dicAbs.keys())
         self.Ags = list(self.dicAgs.keys())
-        self.gcs = self.make_gcs()
+        
         self.n_injections = self.config['experiment']['num_injections']
         
-        
+        # Make the germinal centers (keep this last to avoid errors)
+        self.gcs = self.make_gcs()
     
     def injection(self):
         dones = [gc.injection() for gc in self.gcs]
@@ -81,6 +85,7 @@ class AffinityMaturation:
                               self.dicAbs,
                               self.revert,
                               self.maturation_params,
+                              self.score_config,
                               self.debug) for _ in range(self.num_GCs)]
         return gcs
     
@@ -91,7 +96,7 @@ class AffinityMaturation:
 
         self.num_GCs = self.config['experiment']['num_GCs']
         self.revert = self.config['experiment']['revert']
-        self.scoring_function = self.config['experiment']['scoring_function']
+        self.score_config = self.config['experiment']['scoring_function']
         self.maturation_params = self.config['maturation_parameters']
         self.debug = self.config['experiment']['debug']
 
@@ -105,6 +110,13 @@ class AffinityMaturation:
             with open(path, 'w') as f:
                 json.dump(self.config, f, indent=3)
 
+
+    def make_scoring_function(self):
+        """
+        Make the scoring function
+        """
+        self.scoring_function = scoring_function(self.score_config)
+    
     def build_Ab_Ag(self):
         """
         Make the GL antibody and antigen
