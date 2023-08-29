@@ -4,6 +4,7 @@ import sys, os, json, shutil
 import hashlib
 import numpy as np
 import joblib
+import pandas as pd
 import logging
 log = logging.getLogger(__name__)
 import ppdg
@@ -63,8 +64,43 @@ class PPDG(ScoringFunction):
         return dg
 
 class SinglePoint(ScoringFunction):
-    def singlepoint_score(self, ab, ag):
-        pass
+    """
+    Sum of single-point ddG scoring function. 
+    
+    Requires a singlepoint file with columns:
+        - pos: position in the antibody
+        - aa: amino acid at that position
+        - score: ddG score for that mutation
+    
+    Returns the sum of the ddG scores for each mutation from the WT antibody
+    """
+    def __init__(self, singlepoint_file):
+        # Read in the singlepoint file, and build pivot table
+        try:
+            df = pd.read_csv(singlepoint_file)
+        except:
+            raise ValueError("Could not read/locate singlepoint file, check the path!")
+        
+        # Check that the singlepoint file has the correct columns
+        if not set(['pos', 'aa', 'score']).issubset(set(df.columns)):
+            raise ValueError("Singlepoint file must have columns 'ab', 'ag', 'score'")
+        
+        # Pivot the table (fill = 0 for missing values since the only missing values are WT)
+        df = df.pivot_table(index='pos', columns='aa', values='score', fill_value=0)
+
+        self.score_table = df
+
+    def __call__(self, ab, wt_ab):
+
+        # Loop over antibody, check if AA == WT, if not, add score (ddG) to total
+        score = 0
+        wt_ab = list(wt_ab)
+        ab = list(wt_ab)
+        for pos, wt_aa in enumerate(wt_ab):
+            if wt_aa != ab[pos]:
+                score += self.score_table.loc[pos, ab[pos]]
+        return score
+
 
 class PPDX(ScoringFunction):
     def ppdx_score(self, ab, ag):
