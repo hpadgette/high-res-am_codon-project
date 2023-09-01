@@ -96,7 +96,7 @@ class AffinityMaturation:
 
         self.num_GCs = self.config['experiment']['num_GCs']
         self.revert = self.config['experiment']['revert']
-        self.score_config = self.config['experiment']['scoring_function']
+        self.score_config = self.config['experiment']['score_config']
         self.maturation_params = self.config['maturation_parameters']
         self.debug = self.config['experiment']['debug']
 

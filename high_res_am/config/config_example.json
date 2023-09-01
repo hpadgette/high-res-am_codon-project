@@ -7,9 +7,11 @@
         "exp_name" : "test",
 
     
-        "num_injections" : 2,
-        "scoring_function" : "ppdg"
-
+        "num_injections" : 5,
+        "score_config": {
+            "scoring_function" : "singlepoint",
+            "singlepoint_file" : "/projects/jofa3453/high_res_am/high_res_am/singlepoint/hiv_VRC01_ddg.csv"
+        }
     },
     
     "pathogen" : "hiv",
@@ -54,12 +56,12 @@
         "p_recycle" : 0.70,
         
 
-        "num_GC_founders" : [1, 2, 3],
+        "num_GC_founders" : 1,
         "epsilon" : 1e-16,
         "activation_energy" : -9.011959719155849,
         "nb_trial" : 1,
         
-        "pop_size" : 5,
+        "pop_size" : 128,
         "energy_scale" : 5.83333333333,
         "help_cutoff" : 0.70
 

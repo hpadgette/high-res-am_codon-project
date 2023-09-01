@@ -250,23 +250,26 @@ class GerminalCenter(object):
             i = 2
 
         if self.revert:
-            if n_mem_clones < self.num_GC_founders[i]:
+            if n_mem_clones < self.num_GC_founders:
                 if self.debug > 0:
                     print("Not enough memory cells to form founders!")
                 return BCell(self.gc_dict, residues=None, nbs=0)
             p = None
             replace = False
         else:
-            if nb_tot < self.num_GC_founders[i]:
+            if nb_tot < self.num_GC_founders:
                 if self.debug > 0:
                     print("Not enough memory cells to form founders!")
                 return BCell(self.gc_dict, residues=None, nbs=0)
             p = nbs / nb_tot # Probabilities for choosing each clone (proportaional to nbs)
             replace = True # Approximation
 
-        id_new_founders = np.random.choice(n_mem_clones, self.num_GC_founders[i], p=p, replace=replace)
-        residues = self.memory_cells.residues[id_new_founders]
+        id_new_founders = np.random.choice(n_mem_clones, self.num_GC_founders, p=p, replace=replace)
+        
 
+        #TODO: Allow for multiple GC founders after first injection
+        residues = self.memory_cells.residues[id_new_founders][0][0]
+        
         if self.revert:
             nbs = self.memory_cells.nbs[id_new_founders]
         else:
@@ -322,6 +325,9 @@ class BCell():
         for k, v in gc_dict.items():
             self.__dict__[k] = v
         self.residues = residues
+        if self.residues is not None and isinstance(self.residues, str):
+            self.parent_seq = deepcopy(str(Seq(self.residues).translate()))
+            self.parent_seq = self.parent_seq[0:118] + '/' + self.parent_seq[118:]
         self.nbs = nbs
         if 'maturation_params' in gc_dict:
             self.p_mut = self.maturation_params['p_mut']
@@ -436,12 +442,14 @@ class BCell():
 
         # Convert to AA
         Ab_aa = str(Ab_nt.translate())
-        
+
         # Format for chains in Modeller
         Ab = Ab_aa[0:118] + '/' + Ab_aa[118:]
         if "*" not in Ab_aa:
-            # dg = compute_descriptors_kayla.main(Ag, Ab)
-            dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab)
+            if self.score_config['scoring_function'] == 'singlepoint':
+                dg = self.scoring_function(ab=Ab, wt_ab=self.parent_seq)
+            else:
+                dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab)
         else:
             dg = 100
         print("deltaG: ", dg)
