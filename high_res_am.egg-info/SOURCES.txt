@@ -1,10 +1,13 @@
 setup.py
+high_res_am/__init__.py
 high_res_am/affinity.py
 high_res_am/compute_descriptors_kayla.py
 high_res_am/dictionary_little_code.py
 high_res_am/founders.py
+high_res_am/lymph_node.py
 high_res_am/mixture.py
 high_res_am/run.py
+high_res_am/score.py
 high_res_am/seedingBcell.py
 high_res_am.egg-info/PKG-INFO
 high_res_am.egg-info/SOURCES.txt

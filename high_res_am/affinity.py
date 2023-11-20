@@ -123,6 +123,10 @@ class AffinityMaturation:
         """
         
         # Build antigens
+
+        # May need to change this for Hannah to do a concentration profile
+        # Might not want to enumerate over the antigen_seqs, since they'll be the same.
+        # Maybe could just take the index out of concentration
         for i, Ag in enumerate(self.config['antigen']['antigen_seqs']):
             dicAgs = {
                 self.config['antigen']['antigen_names'][i]:{'seq' : [Ag],
