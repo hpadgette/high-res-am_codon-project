@@ -83,9 +83,9 @@ class GerminalCenter(object):
         # maximum number of cells in the GC (= initial population size)
         # self.GC_size_max = self.B_cells.nbs
         if isinstance(self.B_cells.nbs, int):
-            self.GC_size_max = self.B_cells.nbs*2
+            self.GC_size_max = self.B_cells.nbs
         else:
-            self.GC_size_max = self.B_cells.nbs.sum()*2
+            self.GC_size_max = self.B_cells.nbs.sum()
 
     def injection(self):
         self.n_injections += 1
