@@ -17,7 +17,7 @@ import warnings
 from score import scoring_function
 warnings.filterwarnings("ignore")
 hannahPlog = open("hannahP_log.csv", 'w') 
-np.random.seed()
+np.random.seed(1)
 
 class GerminalCenter(object):
 
@@ -83,9 +83,9 @@ class GerminalCenter(object):
         # maximum number of cells in the GC (= initial population size)
         # self.GC_size_max = self.B_cells.nbs
         if isinstance(self.B_cells.nbs, int):
-            self.GC_size_max = self.B_cells.nbs
+            self.GC_size_max = self.B_cells.nbs*2
         else:
-            self.GC_size_max = self.B_cells.nbs.sum()
+            self.GC_size_max = self.B_cells.nbs.sum()*2
 
     def injection(self):
         self.n_injections += 1
@@ -125,14 +125,16 @@ class GerminalCenter(object):
             """
             print("Done with GC Cycle!")
             done, exceed_size_flag = self.test_state()
+            print("Done? ", done)
+            print("Too Big?? ", exceed_size_flag)
             if done:
                 if self.debug > 1:
                     print("Finished after cycle {}".format(self.cycle_number))
             elif exceed_size_flag:
                 self.memory_founders = self.pick_memCells()
-            break
+            
+            print("Done with GC Cycle {}, on to the next one!".format(self.cycle_number))
 
-        print("MEMORY_FOUNDERS: ", self.memory_founders.div)
         return done
 
     def run_GC_cycle(self):
@@ -183,7 +185,6 @@ class GerminalCenter(object):
             # ftrack2.flush()
             new_cells = []
             if isinstance(self.B_cells.nbs, int):
-                all_ags_captured = 0
                 self.calc_expansion_rate()
                 self.B_cells.divide(self.cycle_number)
                 self.B_cells.shm(self.Ag, self.cycle_number)
@@ -342,6 +343,7 @@ class GerminalCenter(object):
     def test_state(self):
         print("===Testing State===")
         GC_size = self.B_cells.nbs.sum()  # total number of cells in the GC
+        print("Size of GC: ", GC_size)
         if (self.cycle_number == self.nb_cycle_max - 1) or (
                 GC_size > self.GC_size_max):  # at the end, all B cells exit the GC
             self.plasma_cells = self.B_cells
@@ -395,12 +397,12 @@ class GerminalCenter(object):
                     self.B_cells.ag_captured[i] = 200
                     self.ag_left -= ag_needed
                     print("B cell reached max ag!")
-            elif ag_left > 0:
-                divided_amount = math.floor(self.ag_left/self.B_cells.nbs[i])
+            elif self.ag_left > 0:
+                divided_amount = np.floor(self.ag_left/self.B_cells.nbs[i])
                 if self.B_cells.ag_captured[i] + divided_amount <= 200:
                     print("Not enough Ag left. Assigning remaining", self.ag_left, "as", divided_amount, "to each B cell.")
                     ag_needed = divided_amount * self.B_cells.nbs[i]
-                    self.B_cells.ag_captured[i] += divided_amount
+                    self.B_cells.ag_captured[i] += ag_needed # JGF: was divided_amount, but I think this doesn't work with nbs vector
                     self.ag_left -= ag_needed
                     print("Assigned", divided_amount, "to each B cell of clone", i, ". There is", self.ag_left, "left.")
                 else:
@@ -550,12 +552,15 @@ class BCell():
             E = np.repeat(self.E[0], residues.shape[0])
             ag_captured = np.repeat(0, residues.shape[0])
             div = np.repeat(1, residues.shape[0])
- 
+        print("nbs in Clone(): ", len(self.nbs))
+        print("nbs to add in Clone(): ", len(nbs))
+        print("Num AG Captured in Clone(): ", len(self.ag_captured))
+        print("Num Ag Captured to add in Clone(): ", len(ag_captured))
         self.residues = np.vstack([self.residues, residues])
         self.nbs = np.concatenate([self.nbs, nbs])
         self.E = np.concatenate([self.E, E])
         self.ag_captured = np.concatenate([self.ag_captured, ag_captured])
-        self.div = np.hstack([self.div, div])
+        self.div = np.concatenate([self.div, div])
 
 
     # Might be unnecessary
@@ -570,7 +575,7 @@ class BCell():
         self.history['cycle_number'].append(self.cycle_number)
 
     def energy(self, Ag, cycle_number, residues):
-        print("=== Calculating deltaG ===")
+        
         """ Return binding energy with input antigen. """
         
         # Convert to Bio nt_seq
@@ -604,8 +609,8 @@ class BCell():
             self.cycle_number = cycle_number
         else:
             print("Dividing", self.div, "times in round", cycle_number)
-            pop_growth = [int(2**i) for i in self.div]
-            self.nbs = np.dot(self.nbs, pop_growth)
+            pop_growth = [int(2*i) for i in self.div]
+            self.nbs = np.multiply(self.nbs, pop_growth)
             self.generation += 1
             self.cycle_number = cycle_number
 
@@ -742,7 +747,7 @@ class BCell():
         new_clones = []
         n_muts = np.random.binomial(self.nbs, self.p_mut)
         self.nbs -= n_muts
-
+        print("nbs in shm() (post muts): ", self.nbs)
         # get number of CDR vs framework (FR) mutations
         if self.p_CDR == 1.0:
             n_CDRs = n_muts
@@ -754,9 +759,9 @@ class BCell():
         outcomes = self.vectorized_multinomial(ns=n_CDRs, condp=self.shm_condp)  # die, silent, affected
         n_silent = outcomes[:, 1]
         n_affect = outcomes[:, 2]
-
+        print("outcomes in shm(): ", outcomes)
         self.nbs += n_silent  # add silent mutations to the parent clone
-
+        print("nbs in shm() (post silent): ", self.nbs)
         n_total = n_affect.sum() # number of new clones
         print("n_affect =", n_affect)
         start = 0
@@ -782,8 +787,6 @@ class BCell():
 
         # Prune clones that are dead
         self.prune()
-
-        return self
 
     """
     Ideally we can use Brenden's implementation for the speed-up

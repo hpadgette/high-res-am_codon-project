@@ -56,7 +56,7 @@
         "activation_energy" : -9.011959719155849,
         "nb_trial" : 1,
         
-        "pop_size" : 10,
+        "pop_size" : 128,
         "energy_scale" : 5.83333333333,
         "help_cutoff" : 0.70
 
