@@ -132,7 +132,7 @@ class GerminalCenter(object):
                     print("Finished after cycle {}".format(self.cycle_number))
             elif exceed_size_flag:
                 self.memory_founders = self.pick_memCells()
-            
+                break
             print("Done with GC Cycle {}, on to the next one!".format(self.cycle_number))
 
         return done

@@ -53,7 +53,7 @@
 
         "num_GC_founders" : 1,
         "epsilon" : 1e-16,
-        "activation_energy" : -9.011959719155849,
+        "activation_energy" : -9.75011959719155849,
         "nb_trial" : 1,
         
         "pop_size" : 128,
