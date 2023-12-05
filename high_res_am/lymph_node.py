@@ -16,7 +16,7 @@ from collections import defaultdict
 import warnings
 from score import scoring_function
 warnings.filterwarnings("ignore")
-hannahPlog = open("hannahP_log.csv", 'w') 
+
 np.random.seed(1)
 
 class GerminalCenter(object):
@@ -43,12 +43,13 @@ class GerminalCenter(object):
         self.nb_cycle_max = 99
         self.help_cutoff = self.maturation_params['help_cutoff']
         self.score_config = score_config
+        self.parent_seq = self.dicAbs[Ab[0]]['seq']
         self.gc_dict = deepcopy(self.__dict__)
         self.memory_cells = BCell(self.gc_dict, residues=None, nbs=1)
         self.memory_founders = BCell(self.gc_dict, residues=None, nbs=1)
-        self.ag_left = 1000
         self.seed_nbs = self.maturation_params['pop_size']
         self.ag_start = 1000
+        self.ag_left = self.ag_start
         self.p_scale = self.maturation_params['p_scale']
         residues = self.dicAbs[Ab[0]]['seq']
         self.B_cells = BCell(self.gc_dict, residues=residues, nbs=self.seed_nbs)
@@ -104,6 +105,7 @@ class GerminalCenter(object):
 
             # Set current B Cells to be memory founders
             self.B_cells = self.memory_founders
+
             # If there aren't any B Cells, exit since the GC has expired
             if isinstance(self.B_cells.nbs, int):
                 if self.B_cells.nbs == 0:
@@ -124,12 +126,14 @@ class GerminalCenter(object):
             neither flag is raised, it will then add 1 to the current cycle_number.
             """
             print("Done with GC Cycle!")
+            print("There are {} Ags left for the next cycle!".format(self.ag_left))
             done, exceed_size_flag = self.test_state()
             print("Done? ", done)
             print("Too Big?? ", exceed_size_flag)
             if done:
                 if self.debug > 1:
                     print("Finished after cycle {}".format(self.cycle_number))
+                break
             elif exceed_size_flag:
                 self.memory_founders = self.pick_memCells()
                 break
@@ -213,6 +217,8 @@ class GerminalCenter(object):
         self.B_cells.prob_capture = np.zeros(shape=self.B_cells.nbs.shape)
         pvals = np.array([1./float(len(self.Ags))] * len(self.Ags))
         self.B_cells.last_bound = self.B_cells.vectorized_multinomial(ns=self.B_cells.nbs, condp = [1./float(len(self.Ags))] * len(self.Ags))[:]
+        print("Ag Left at the start of binding selection: ", self.ag_left)
+        print("ag_start at the start of binding selection: ", self.ag_start)
         for i in range(len(self.B_cells.nbs)):
             for j in range(len(self.Ags)):
                 # compute binding energy and chance of death ( = 1 - chance of survival )
@@ -235,8 +241,8 @@ class GerminalCenter(object):
             # print("nbs in binding: ", self.B_cells.nbs)
         self.B_cells.prune()
         self.B_cells.prob_capture = self.B_cells.prob_capture[self.B_cells.alive]
-        ag_left = self.assign_ag()            #added explicit Ag capture
-        self.ag_left = ag_left
+        self.assign_ag()            #added explicit Ag capture
+        # self.ag_left = ag_left
         
     
     def run_help_selection(self):
@@ -325,25 +331,29 @@ class GerminalCenter(object):
                 return BCell(self.gc_dict, residues=None, nbs=0)
             p = nbs / nb_tot # Probabilities for choosing each clone (proportaional to nbs)
             replace = True # Approximation
-
+        print("Number of Memory Clones: ", n_mem_clones)
         id_new_founders = np.random.choice(n_mem_clones, self.num_GC_founders, p=p, replace=replace)
-        
+        print("ID of New Founders: ", id_new_founders)
 
         #TODO: Allow for multiple GC founders after first injection
-        residues = self.memory_cells.residues[id_new_founders][0][0]
+
+        residues = self.memory_cells.residues[id_new_founders]
         
         if self.revert:
             nbs = self.memory_cells.nbs[id_new_founders]
         else:
-            nbs = self.seed_nbs  # Instantly proliferate to 128
-
+            # nbs = self.seed_nbs  # Instantly proliferate to 128
+            nbs = 128 * np.ones(self.num_GC_founders, dtype=np.int) # JGF: Testing multiple memory cells
+        
         new_founders = BCell(self.gc_dict, residues=residues, nbs=nbs)
+        new_founders.E = self.memory_cells.E[id_new_founders]
         return new_founders
 
     def test_state(self):
         print("===Testing State===")
         GC_size = self.B_cells.nbs.sum()  # total number of cells in the GC
         print("Size of GC: ", GC_size)
+
         if (self.cycle_number == self.nb_cycle_max - 1) or (
                 GC_size > self.GC_size_max):  # at the end, all B cells exit the GC
             self.plasma_cells = self.B_cells
@@ -374,12 +384,14 @@ class GerminalCenter(object):
         print("\n")
         assert len(self.B_cells.prob_capture) == len(self.B_cells.nbs)
         # live_clones = [(p,b) for p, b in zip(self.prob_capture, self.B_cells) if self.B_cells.nbs > 0]
-        try:
-            p_sorted = sorted(self.B_cells.prob_capture, reverse=True)
-        except:
-            return self.ag_left
-        
-        for i, p in enumerate(p_sorted):
+        # try:
+        #     p_sorted = sorted(self.B_cells.prob_capture, reverse=True)
+        # except:
+        #     return self.ag_left
+
+        # JGF: Was enumerate(p_sorted)
+        for i in np.argsort(-1*self.B_cells.prob_capture):
+            p = self.B_cells.prob_capture[i]
             ag_to_capture = np.random.binomial(self.ag_left, p)
             wanted_by_clone = self.B_cells.nbs[i]*ag_to_capture
             print("Energy: ", self.B_cells.E[i])
@@ -454,9 +466,10 @@ class BCell():
         for k, v in gc_dict.items():
             self.__dict__[k] = v
         self.residues = residues
-        if self.residues is not None and isinstance(self.residues, str):
-            self.parent_seq = deepcopy(str(Seq(self.residues).translate()))
-            self.parent_seq = self.parent_seq[0:118] + '/' + self.parent_seq[118:]
+        # if self.residues is not None and isinstance(self.residues, str):
+        # print("Parent Sequence: ", self.parent_seq)
+        self.parent_seq = deepcopy(str(Seq(self.parent_seq).translate()))
+        self.parent_seq = self.parent_seq[0:118] + '/' + self.parent_seq[118:]
         self.nbs = nbs
         if 'maturation_params' in gc_dict:
             self.p_mut = self.maturation_params['p_mut']
@@ -473,8 +486,8 @@ class BCell():
         condp[np.isnan(condp)] = 0.0
         self.shm_condp = condp
         self.scoring_function = scoring_function(self.score_config).__call__
+        
 
-        self.ag_captured = 0
 
         if 'nb_CDR_mut' in kwargs:
             self.nb_CDR_mut = kwargs['nb_CDR_mut']
@@ -491,41 +504,31 @@ class BCell():
         else:
             if isinstance(nbs, int) and isinstance(residues, str):
                 self.E = self.energy(self.dicAgs[self.Ags[0]]['seq'][0], self.cycle_number, self.residues)
+            # elif residues is not None:
+            #     E = np.zeros(shape=(len(residues),))
+            #     for i, res in enumerate(residues):
+            #         E[i] = self.energy(self.dicAgs[self.Ags[0]]['seq'][0], self.cycle_number, res)
+            #     self.E = E
             else:
                 self.E = np.inf
-        
-        #     # assuming single Ag case!!!!### ###FIX###
-
-        # if 'breadth' in kwargs:
-        #     self.breadth = np.array(kwargs['breadth'])
-        # else:
-        #     self.breadth = 0
-
-        # if 'mut_res_id' in kwargs:
-        #     self.mut_res_id = kwargs['mut_res_id']
-        # else:
-        #     self.mut_res_id = 0
-
-        # if 'delta_res' in kwargs:
-        #     self.delta_res = kwargs['delta_res']
-        # else:
-        #     self.delta_res = 0
 
         if 'generation' in kwargs:
             self.generation = kwargs['generation']
         else:
             self.generation = 0
-
-        # if 'history' in kwargs:
-        #     self.history = kwargs['history']
-        # else:
-        #     self.history = {'generation': [self.generation], 'cycle_number': [self.cycle_number],
-        #                     'residues': [self.residues], 'nb_CDR_mut': [self.nb_CDR_mut],
-        #                     'mut_res_id': [self.mut_res_id], 'E': [self.E], 'delta_res': [self.delta_res]}
-
+        
         self.E = np.array(self.E).reshape((1,))
-        self.ag_captured = np.array(self.ag_captured).reshape((1,))
-        self.div = np.ones(shape=self.E.shape, dtype=int)
+        if isinstance(self.nbs, int):
+            self.ag_captured = 0
+            self.ag_captured = np.array(self.ag_captured).reshape((1,))
+            self.div = np.array([1]).reshape((1,))
+        else:
+            self.ag_captured = np.zeros(self.nbs.shape[0], dtype=int)
+            self.div = np.ones(self.nbs.shape[0], dtype=int)
+
+        
+
+
         # self.prob_capture = np.array(0).reshape((1,))
         self.lenFRWH1 = self.dicAbs[self.Ab[0]]['lengths']['FRWH1_nt']
         self.lenCDRH1 = self.dicAbs[self.Ab[0]]['lengths']['CDRH1_nt']
@@ -552,10 +555,10 @@ class BCell():
             E = np.repeat(self.E[0], residues.shape[0])
             ag_captured = np.repeat(0, residues.shape[0])
             div = np.repeat(1, residues.shape[0])
-        print("nbs in Clone(): ", len(self.nbs))
-        print("nbs to add in Clone(): ", len(nbs))
-        print("Num AG Captured in Clone(): ", len(self.ag_captured))
-        print("Num Ag Captured to add in Clone(): ", len(ag_captured))
+        # print("nbs in Clone(): ", len(self.nbs))
+        # print("nbs to add in Clone(): ", len(nbs))
+        # print("Num AG Captured in Clone(): ", len(self.ag_captured))
+        # print("Num Ag Captured to add in Clone(): ", len(ag_captured))
         self.residues = np.vstack([self.residues, residues])
         self.nbs = np.concatenate([self.nbs, nbs])
         self.E = np.concatenate([self.E, E])
@@ -602,17 +605,17 @@ class BCell():
         """ Run one round of division. """   
         #BMP change to account for differential expansion rates (Gitlin et al. 2014)
 
-        if cycle_number == 2:
-            print("Dividing 1 time in round", cycle_number)
-            self.nbs *= 2
-            self.generation += 1
-            self.cycle_number = cycle_number
-        else:
-            print("Dividing", self.div, "times in round", cycle_number)
-            pop_growth = [int(2*i) for i in self.div]
-            self.nbs = np.multiply(self.nbs, pop_growth)
-            self.generation += 1
-            self.cycle_number = cycle_number
+        # if cycle_number == 2:
+        #     print("Dividing 1 time in round", cycle_number)
+        #     self.nbs *= 2
+        #     self.generation += 1
+        #     self.cycle_number = cycle_number
+        # else:
+        print("Dividing", self.div, "times in round", cycle_number)
+        pop_growth = [int(2*i) for i in self.div]
+        self.nbs = np.multiply(self.nbs, pop_growth)
+        self.generation += 1
+        self.cycle_number = cycle_number
 
 
     def calculate_breadth(self, testpanel, threshold, panelSize):
@@ -722,6 +725,8 @@ class BCell():
             end1 = timer()
             mutate_time1 = end1 - start1
             start2 = timer()
+
+            
             if len(Ab_aa) < 217:
                 print("This mutation resulted in a dead B Cell due to a start/stop codon change at position: ",
                  index)
@@ -747,7 +752,7 @@ class BCell():
         new_clones = []
         n_muts = np.random.binomial(self.nbs, self.p_mut)
         self.nbs -= n_muts
-        print("nbs in shm() (post muts): ", self.nbs)
+        
         # get number of CDR vs framework (FR) mutations
         if self.p_CDR == 1.0:
             n_CDRs = n_muts
@@ -757,15 +762,18 @@ class BCell():
         
         # process CDR mutations
         outcomes = self.vectorized_multinomial(ns=n_CDRs, condp=self.shm_condp)  # die, silent, affected
+        n_die = outcomes[:, 0]
         n_silent = outcomes[:, 1]
         n_affect = outcomes[:, 2]
-        print("outcomes in shm(): ", outcomes)
+        
+        self.nbs -= n_die 
         self.nbs += n_silent  # add silent mutations to the parent clone
-        print("nbs in shm() (post silent): ", self.nbs)
+        
         n_total = n_affect.sum() # number of new clones
-        print("n_affect =", n_affect)
+        
         start = 0
         #TODO: Change this to the implementation below/amdrl for speed-up
+        
         if len(self.nbs) == 1:
             new_residues = np.tile(self.residues, (n_total, 1))
         else:
@@ -777,7 +785,6 @@ class BCell():
 
         # Add clones to be mutated in mutate_CDR()
         self.clone(new_residues, nbs=int(1))
-
         # Mutate clones
         self.mutate_CDR(Ag, new_residues.shape[0])
         # for item in self.nbs:
@@ -815,8 +822,7 @@ class BCell():
         Prune the dead B Cell populations
         """
         alive = self.nbs > 0
-        print("self.ag_captured in prune(): ", self.ag_captured)
-        print("alive in prune(): ", alive)
+        print("B Cell Populations Pre-Pruning: ", self.nbs)
         self.ag_captured = self.ag_captured[alive]
         self.div = self.div[alive]
         self.nbs = self.nbs[alive]
