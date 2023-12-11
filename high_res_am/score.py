@@ -101,7 +101,7 @@ class SinglePoint(ScoringFunction):
         ab = list(ab)
         for pos, wt_aa in enumerate(wt_ab):
             if wt_aa != ab[pos]:
-                print("Scoring...")
+                # print("Scoring...")
                 score += self.score_table.loc[pos, ab[pos]]
         # TODO: Make the WT score a parameter, but for now hardcoded
         score += -10.749000037414195

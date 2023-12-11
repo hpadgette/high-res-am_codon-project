@@ -17,7 +17,7 @@ import warnings
 from score import scoring_function
 warnings.filterwarnings("ignore")
 
-np.random.seed(1)
+np.random.seed(0)
 
 class GerminalCenter(object):
 
@@ -48,7 +48,7 @@ class GerminalCenter(object):
         self.memory_cells = BCell(self.gc_dict, residues=None, nbs=1)
         self.memory_founders = BCell(self.gc_dict, residues=None, nbs=1)
         self.seed_nbs = self.maturation_params['pop_size']
-        self.ag_start = 1000
+        self.ag_start = self.maturation_params['ag_start']
         self.ag_left = self.ag_start
         self.p_scale = self.maturation_params['p_scale']
         residues = self.dicAbs[Ab[0]]['seq']
@@ -84,9 +84,9 @@ class GerminalCenter(object):
         # maximum number of cells in the GC (= initial population size)
         # self.GC_size_max = self.B_cells.nbs
         if isinstance(self.B_cells.nbs, int):
-            self.GC_size_max = self.B_cells.nbs
+            self.GC_size_max = self.B_cells.nbs*5
         else:
-            self.GC_size_max = self.B_cells.nbs.sum()
+            self.GC_size_max = self.B_cells.nbs.sum()*5
 
     def injection(self):
         self.n_injections += 1
@@ -99,13 +99,14 @@ class GerminalCenter(object):
 
         # Second injection onward, use memory founders
         if self.n_injections > 1:
-            self.ag_left = 1000 # Reset ag_left to 1000; Change for hannah P?
+            self.ag_left = self.ag_start # Reset ag_left to 1000; Change for hannah P?
             self.cycle_number = 0  # Reset cycle number
             self.plasma_cells = BCell(self.gc_dict, residues=None, nbs=0)  # Reset plasma cells
 
             # Set current B Cells to be memory founders
             self.B_cells = self.memory_founders
-
+            print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
+            self.activation_energy = np.mean(self.B_cells.E) + 1
             # If there aren't any B Cells, exit since the GC has expired
             if isinstance(self.B_cells.nbs, int):
                 if self.B_cells.nbs == 0:
@@ -126,18 +127,28 @@ class GerminalCenter(object):
             neither flag is raised, it will then add 1 to the current cycle_number.
             """
             print("Done with GC Cycle!")
+            print("Average deltaG for cycle {}: {}".format(self.cycle_number, np.average(self.B_cells.E, weights=self.B_cells.nbs)))
             print("There are {} Ags left for the next cycle!".format(self.ag_left))
-            done, exceed_size_flag = self.test_state()
+            done, exceed_size_flag, ag_left_flag = self.test_state()
             print("Done? ", done)
             print("Too Big?? ", exceed_size_flag)
+            print("Are we out of antigen? ", ag_left_flag)
+            
             if done:
                 if self.debug > 1:
                     print("Finished after cycle {}".format(self.cycle_number))
+                print('\n \n \n')
                 break
             elif exceed_size_flag:
                 self.memory_founders = self.pick_memCells()
+                print('\n \n \n')
+                break
+            elif ag_left_flag:
+                self.memory_founders = self.pick_memCells()
+                print('\n \n \n')
                 break
             print("Done with GC Cycle {}, on to the next one!".format(self.cycle_number))
+            print('\n \n \n')
 
         return done
 
@@ -179,14 +190,11 @@ class GerminalCenter(object):
             self.B_cells.divide(self.cycle_number)
             self.B_cells.shm(self.Ag, self.cycle_number)
     
-    def run_dark_zone(self, nb_rounds = 2):
+    def run_dark_zone(self, nb_rounds=2):
         print("=== Running Dark Zone ===")
         """ B cells proliferate and undergo SHM in the dark zone. """
         
         for i in range(nb_rounds):
-            # ftrack2.write('division/mutation round = %d' %(i+1))
-            # ftrack2.write('\n')
-            # ftrack2.flush()
             new_cells = []
             if isinstance(self.B_cells.nbs, int):
                 self.calc_expansion_rate()
@@ -234,15 +242,13 @@ class GerminalCenter(object):
                 self.B_cells.prob_capture[i] = p_capture
                 
                 # remove dead cells and update binding details
-                n_die            = np.random.binomial(self.B_cells.nbs[i], langmuir_conj)
-                # print("n_die: ", n_die)
-                self.B_cells.nbs[i]            -= n_die
+                n_die = np.random.binomial(self.B_cells.nbs[i], langmuir_conj)
+                self.B_cells.nbs[i] -= n_die
                 self.B_cells.last_bound[i] -= n_die
-            # print("nbs in binding: ", self.B_cells.nbs)
+                
         self.B_cells.prune()
         self.B_cells.prob_capture = self.B_cells.prob_capture[self.B_cells.alive]
-        self.assign_ag()            #added explicit Ag capture
-        # self.ag_left = ag_left
+        self.assign_ag() # Explicit antigen capture
         
     
     def run_help_selection(self):
@@ -257,15 +263,19 @@ class GerminalCenter(object):
 
         sorted_binding_energies = binding_energies[sort]
         sorted_nbs = self.B_cells.nbs[sort]
+        
         nb_tot = self.B_cells.nbs.sum()
         if nb_tot > 0:
             cut_idx = int(self.help_cutoff * nb_tot) - 1
             energy_idx = np.argmax(np.cumsum(sorted_nbs) > cut_idx)
             # Returns index of first instance in which cumulative sum of nbs is greater than the cutoff value
             energy_cutoff = sorted_binding_energies[energy_idx]
-
+            print("Energy Cutoff: ", energy_cutoff)
+            print("binding energies: ", binding_energies)
+            print("nbs: ", self.B_cells.nbs)
             # Kill all B cells below threshold
-            dies = binding_energies < energy_cutoff
+            dies = binding_energies > energy_cutoff
+            print("dies: ", dies)
             self.B_cells.nbs[dies] = 0
 
             # Kill a fraction of B cells exactly at threshold
@@ -274,6 +284,7 @@ class GerminalCenter(object):
             n_die_tie = self.B_cells.nbs.sum() - cut_idx
             # Total number of cells to remove for clones exactly at threshold
             fraction_die_tie = n_die_tie / self.B_cells.nbs[ties].sum()
+            print("Fraction Die Tie: ", fraction_die_tie)
             # Fraction of cells to remove for each clone exactly at threshold
             self.B_cells.nbs[ties] = np.multiply(self.B_cells.nbs[ties], (1 - fraction_die_tie), casting="unsafe")
             # Note: Can't use *= because we're multiplying an int by a float
@@ -336,16 +347,16 @@ class GerminalCenter(object):
         print("ID of New Founders: ", id_new_founders)
 
         #TODO: Allow for multiple GC founders after first injection
-
-        residues = self.memory_cells.residues[id_new_founders]
+        residues = self.memory_cells.residues[id_new_founders][:]
         
         if self.revert:
             nbs = self.memory_cells.nbs[id_new_founders]
         else:
             # nbs = self.seed_nbs  # Instantly proliferate to 128
-            nbs = 128 * np.ones(self.num_GC_founders, dtype=np.int) # JGF: Testing multiple memory cells
+            nbs = 10 * np.ones(self.num_GC_founders, dtype=np.int) # JGF: Testing multiple memory cells
         
         new_founders = BCell(self.gc_dict, residues=residues, nbs=nbs)
+        print("New Founder Residues: ", new_founders.residues)
         new_founders.E = self.memory_cells.E[id_new_founders]
         return new_founders
 
@@ -360,19 +371,29 @@ class GerminalCenter(object):
 
         if (GC_size <= 0):
             exceed_size_flag = False
+            ag_left_flag = False
             done = True
             if self.debug > 0:
                 print("Done: GC size = 0 (all dead)")
+
         elif (GC_size > self.GC_size_max):
             exceed_size_flag = True
             done = False
+            ag_left_flag = False
+
+        elif self.ag_left/self.ag_start < 0.05:
+            ag_left_flag = True
+            done = False
+            exceed_size_flag = False
+
         else:
             exceed_size_flag = False
             done = False
+            ag_left_flag = False
 
         self.cycle_number += 1
         
-        return done, exceed_size_flag
+        return done, exceed_size_flag, ag_left_flag
     
     def assign_ag(self):
         print("===Assigning Ag===")
@@ -392,9 +413,18 @@ class GerminalCenter(object):
         # JGF: Was enumerate(p_sorted)
         for i in np.argsort(-1*self.B_cells.prob_capture):
             p = self.B_cells.prob_capture[i]
-            ag_to_capture = np.random.binomial(self.ag_left, p)
+            
+            # JGF: Ag to capture is dependent on the number of antigens present in the GC, but
+            """
+            JGF: 
+            Ag to capture is dependent on the number of antigens present in the GC, but
+            should this be based on the max number each clone can get? If we use larger values then each
+            clone wants thousands of Ag copies, but there would probably be way more than 1000 Ags in the GC?
+            """
+            ag_to_capture = np.random.binomial(200, p)
             wanted_by_clone = self.B_cells.nbs[i]*ag_to_capture
             print("Energy: ", self.B_cells.E[i])
+            print("prob_capture: ", np.round(p, 4))
             print("Ag clone wants to capture: ", ag_to_capture)
             print("Ag already captured: ", self.B_cells.ag_captured[i]," per B cell.")
             print("Clone has ", self.B_cells.nbs[i], " B cells.")
@@ -414,11 +444,11 @@ class GerminalCenter(object):
                 if self.B_cells.ag_captured[i] + divided_amount <= 200:
                     print("Not enough Ag left. Assigning remaining", self.ag_left, "as", divided_amount, "to each B cell.")
                     ag_needed = divided_amount * self.B_cells.nbs[i]
-                    self.B_cells.ag_captured[i] += ag_needed # JGF: was divided_amount, but I think this doesn't work with nbs vector
+                    self.B_cells.ag_captured[i] += divided_amount
                     self.ag_left -= ag_needed
                     print("Assigned", divided_amount, "to each B cell of clone", i, ". There is", self.ag_left, "left.")
                 else:
-                    ag_needed = 200 - b.ag_captured
+                    ag_needed = 200 - self.B_cells.ag_captured[i]
                     self.B_cells.ag_captured[i] = 200
                     self.ag_left -= ag_needed
                     print("B cell reached max ag of", self.B_cells.ag_captured[i], "!")
@@ -428,17 +458,36 @@ class GerminalCenter(object):
     
     def calc_expansion_rate(self):
         print("===Calculating Expansion Rate===")
-        for i, ag in enumerate(self.B_cells.ag_captured):
-            if ag <= 30:
-                self.B_cells.div[i] = 1
+        """
+        JGF (12/8/23):
+        Testing a different implementation. The current one basically gaurantees the first to 30 Ags wins, and
+        gives it a div_rate of 3. Additionally, if a clone as 200 or 30, they still get the same expansion bonus.
+        Experiments show max should be 6, and I would assume it would follow some sort of Michaelis-Menten sort of pattern.
+        
+        Testing with: div_max*(n_cap/n_max)/(1/(A*n_cap+B) + n_cap/n_max) # A and B are empirical & subject to change
+        """
+
+        div_max = 6
+        n_max = 200
+
+        for i, n_cap in enumerate(self.B_cells.ag_captured):
+            if n_cap > 0:
+                self.B_cells.div[i] = np.round((div_max*(n_cap/n_max))/((1/(0.1*n_cap + 0.1)) + (n_cap/n_max)) + 0.5, 0)
             else:
-                if ag >= np.percentile(self.B_cells.ag_captured, 95):
-                    self.B_cells.div[i] = 3
-                elif ag >= np.percentile(self.B_cells.ag_captured, 80):
-                    self.B_cells.div[i] = 2
-                else:
-                    self.B_cells.div[i] = 1
-            print("Antigens Captured: {} \n Division Rate: {}".format(ag, self.B_cells.div[i]))
+                self.B_cells.div[i] = 1
+            
+            print("Antigens Captured: {} \n Division Rate: {}".format(n_cap, self.B_cells.div[i]))
+
+        # for i, ag in enumerate(self.B_cells.ag_captured):
+        #     if ag <= 30:
+        #         self.B_cells.div[i] = 1
+        #     else:
+        #         if ag >= np.percentile(self.B_cells.ag_captured, 95):
+        #             self.B_cells.div[i] = 3
+        #         elif ag >= np.percentile(self.B_cells.ag_captured, 80):
+        #             self.B_cells.div[i] = 2
+        #         else:
+        #             self.B_cells.div[i] = 1
 
 
 class BCell():
@@ -523,6 +572,8 @@ class BCell():
             self.ag_captured = np.array(self.ag_captured).reshape((1,))
             self.div = np.array([1]).reshape((1,))
         else:
+            print("NBS SHAPE FOR NEW B CELLS: ", self.nbs.shape)
+            print("RESIDUES SHAPE FOR NEW B CELLS: ", self.residues.shape)
             self.ag_captured = np.zeros(self.nbs.shape[0], dtype=int)
             self.div = np.ones(self.nbs.shape[0], dtype=int)
 
@@ -596,7 +647,7 @@ class BCell():
                 dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab)
         else:
             dg = 100
-        print("deltaG: ", dg)
+        # print("deltaG: ", dg)
         return dg
 
     
@@ -613,7 +664,9 @@ class BCell():
         # else:
         print("Dividing", self.div, "times in round", cycle_number)
         pop_growth = [int(2*i) for i in self.div]
+        new_ag_captured = [int(ag_captured/(2*i)) for ag_captured,i in zip(self.ag_captured,self.div)]
         self.nbs = np.multiply(self.nbs, pop_growth)
+        self.ag_captured = new_ag_captured
         self.generation += 1
         self.cycle_number = cycle_number
 
@@ -639,6 +692,7 @@ class BCell():
         Fivemer_index = []
         
         residues = self.residues[-n_clones:]
+        
         cln = 0
         for clone_residues in residues:
             clone_residues = clone_residues[0]
@@ -685,7 +739,7 @@ class BCell():
             # print("probs: ", probs)
             probsNorm = probs
             probsNorm /= np.sum(probsNorm)
-            # print("probsNorm: ", probsNorm)
+            
             picked_int = np.random.choice(range(len(Fivemer)), 1, p=probsNorm)
             picked_5mer = Fivemer[picked_int[0]]
             picked_5mer_index = Fivemer_index[picked_int[0]]
@@ -713,7 +767,7 @@ class BCell():
             self.mut_res_id = index
             delta = picked_ntmut
             self.delta_res = delta
-            print("index/delta:", index, delta)
+            # print("index/delta:", index, delta)
             
             temp_res1 = [i for i in temp_res1 if i == 'A' or i == 'T' or i == 'G' or i == 'C']
             temp_res1[index] = delta
