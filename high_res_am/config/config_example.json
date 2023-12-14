@@ -31,12 +31,12 @@
         "p_CDR_silent" : 0.00,
         "p_recycle" : 0.70,
         "p_scale": 0.15,
-        "num_GC_founders" : 3,
+        "num_GC_founders" : 5,
         "epsilon" : 1e-16,
         "activation_energy" : -9,
         "nb_trial" : 1,
-        "pop_size" : 25,
-        "ag_start" : 10000,
+        "pop_size" : 50,
+        "ag_start" : 60000,
         "energy_scale" : 0.9,
         "help_cutoff" : 0.70
 

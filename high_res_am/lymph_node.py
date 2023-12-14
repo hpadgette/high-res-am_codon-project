@@ -17,7 +17,7 @@ import warnings
 from score import scoring_function
 warnings.filterwarnings("ignore")
 
-np.random.seed(0)
+np.random.seed()
 
 class GerminalCenter(object):
 
@@ -39,7 +39,7 @@ class GerminalCenter(object):
         self.Ags = Ags
         self.energy_scale = self.maturation_params['energy_scale']
         self.n_injections = 0  # Number of injections so far
-        self.cycle_number = 2
+        self.cycle_number = 0
         self.nb_cycle_max = 99
         self.help_cutoff = self.maturation_params['help_cutoff']
         self.score_config = score_config
@@ -84,9 +84,9 @@ class GerminalCenter(object):
         # maximum number of cells in the GC (= initial population size)
         # self.GC_size_max = self.B_cells.nbs
         if isinstance(self.B_cells.nbs, int):
-            self.GC_size_max = self.B_cells.nbs*5
+            self.GC_size_max = self.B_cells.nbs*10
         else:
-            self.GC_size_max = self.B_cells.nbs.sum()*5
+            self.GC_size_max = self.B_cells.nbs.sum()*10
 
     def injection(self):
         self.n_injections += 1
@@ -106,7 +106,7 @@ class GerminalCenter(object):
             # Set current B Cells to be memory founders
             self.B_cells = self.memory_founders
             print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
-            self.activation_energy = np.mean(self.B_cells.E) + 1
+            self.activation_energy = np.mean(self.B_cells.E) + 2.0
             # If there aren't any B Cells, exit since the GC has expired
             if isinstance(self.B_cells.nbs, int):
                 if self.B_cells.nbs == 0:
@@ -210,8 +210,6 @@ class GerminalCenter(object):
         """ Select B cells for binding to antigen. """
         for i in range(len(self.B_cells.nbs)):
             Ag_bounds = np.exp(-1 * self.energy_scale * (self.B_cells.E[i] - self.activation_energy))  # Shape: (n_clones,)
-            # From Brian's code:
-            # ag_conc = ag_left/ag_start
             factors = self.conc * Ag_bounds
             langmuir_conjs = 1. / (1. + factors)
             n_dies = np.random.binomial(self.B_cells.nbs[i], langmuir_conjs)
@@ -270,24 +268,26 @@ class GerminalCenter(object):
             energy_idx = np.argmax(np.cumsum(sorted_nbs) > cut_idx)
             # Returns index of first instance in which cumulative sum of nbs is greater than the cutoff value
             energy_cutoff = sorted_binding_energies[energy_idx]
-            print("Energy Cutoff: ", energy_cutoff)
-            print("binding energies: ", binding_energies)
-            print("nbs: ", self.B_cells.nbs)
+
             # Kill all B cells below threshold
             dies = binding_energies > energy_cutoff
-            print("dies: ", dies)
             self.B_cells.nbs[dies] = 0
 
             # Kill a fraction of B cells exactly at threshold
             # Tie deaths are split evenly across all clones exactly at threshold
             ties = binding_energies == energy_cutoff
             n_die_tie = self.B_cells.nbs.sum() - cut_idx
+            print("n_die_tie: ", n_die_tie)
             # Total number of cells to remove for clones exactly at threshold
             fraction_die_tie = n_die_tie / self.B_cells.nbs[ties].sum()
-            print("Fraction Die Tie: ", fraction_die_tie)
+            print("fraction_die_tie: ", fraction_die_tie)
+            print("total nbs pre tiedie: ", self.B_cells.nbs)
+            print("nbs pre tiedie: ", self.B_cells.nbs[ties])
             # Fraction of cells to remove for each clone exactly at threshold
             self.B_cells.nbs[ties] = np.multiply(self.B_cells.nbs[ties], (1 - fraction_die_tie), casting="unsafe")
+            print("nbs post tiedie: ", self.B_cells.nbs[ties])
             # Note: Can't use *= because we're multiplying an int by a float
+            print("multiplication for tiedie", np.multiply(self.B_cells.nbs[ties], (1 - fraction_die_tie), casting="unsafe"))
             self.B_cells.prune()
 
     def run_recycle(self):
@@ -356,7 +356,6 @@ class GerminalCenter(object):
             nbs = 10 * np.ones(self.num_GC_founders, dtype=np.int) # JGF: Testing multiple memory cells
         
         new_founders = BCell(self.gc_dict, residues=residues, nbs=nbs)
-        print("New Founder Residues: ", new_founders.residues)
         new_founders.E = self.memory_cells.E[id_new_founders]
         return new_founders
 
@@ -421,7 +420,9 @@ class GerminalCenter(object):
             should this be based on the max number each clone can get? If we use larger values then each
             clone wants thousands of Ag copies, but there would probably be way more than 1000 Ags in the GC?
             """
-            ag_to_capture = np.random.binomial(200, p)
+            chances = int(np.round(self.ag_left/200, 0))
+            print("Chances for clone {}: {}".format(i, chances))
+            ag_to_capture = np.random.binomial(chances, p)
             wanted_by_clone = self.B_cells.nbs[i]*ag_to_capture
             print("Energy: ", self.B_cells.E[i])
             print("prob_capture: ", np.round(p, 4))

@@ -130,7 +130,7 @@ class AffinityMaturation:
         for i, Ag in enumerate(self.config['antigen']['antigen_seqs']):
             dicAgs = {
                 self.config['antigen']['antigen_names'][i]:{'seq' : [Ag],
-                                                    'conc' : self.config['antigen']['concentration'][i]}
+                                                    'conc' : self.config['antigen']['concentration']}
                 }
         
         # Build GL antibody
