@@ -77,7 +77,7 @@ class AffinityMaturation:
         if self.config['experiment']["logging"]:
             for log in self.config['log_path']:
                 if log is None:
-                    return None
+                    continue
                 elif not os.path.exists(log):
                     os.makedirs(log)
         else:

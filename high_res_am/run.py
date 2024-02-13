@@ -32,13 +32,27 @@ def main(config, exp_name):
     if config['experiment']['logging']:
         config_path = os.path.join('log/', config['experiment']['exp_name'] + timestamp)
         config['config_path'] = config_path
-        if len(config['experiment']['log_level']) > 1:
-            # Make two log directories for both resolution levels
-            inj_log_path = os.path.join(config_path + '/injection_logs')
-            cycle_log_path = os.path.join(config_path + '/cycle_logs')
+
+        if len(config['experiment']['log_level']) > 0:
+            # Make log paths for each specified log_level in the configuration
+            if 'injection' in config['experiment']['log_level']:
+                inj_log_path = os.path.join(config_path + '/injection_logs')
+            else:
+                inj_log_path = None
+
+            if 'cycles' in config['experiment']['log_level']:
+                cycle_log_path = os.path.join(config_path + '/cycle_logs')
+            else:
+                cycle_log_path = None
+
+            if 'B Cell' in config['experiment']['log_level']:
+                bCell_log_path = os.path.join(config_path + '/Bcell_logs')
+            else:
+                bCell_log_path = None
             
-            log_path = [inj_log_path, cycle_log_path]
+            log_path = [inj_log_path, cycle_log_path, bCell_log_path]
             config['log_path'] = log_path
+            
         else:
             # If not just use the timestamp directory
             log_path = config_path

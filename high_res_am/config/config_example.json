@@ -1,7 +1,7 @@
 {
     "experiment" : {
         "logging" : true,
-        "log_level" : ["injection", "cycles"],
+        "log_level" : ["injection", "cycles", "B Cell"],
         "exp_name" : "test",
         "num_GCs" : 2,
         "num_injections" : 2,

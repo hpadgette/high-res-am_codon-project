@@ -58,21 +58,22 @@ class GerminalCenter(object):
 
         # Log paths should always be fed as a list regardless of the number of log levels
         print("ALL LOG PATHS: ", log_paths)
-        for log_file in log_paths:
-            print("LOG FILE: ", log_file)
+        for index, log_file in enumerate(log_paths):
             if "injection" in log_file:
-                print("INJECTION LOG!!")
                 self.injection_log = open(log_file + '/GC_{}_log.csv'.format(self.gc_id), 'w')
                 self.injection_log.write('injection, cycle_number, n_clones, nbs, avg_E, std_E, best_E, worst_E \n')
                 self.injection_log.flush()
+        
             elif "cycle" in log_file:
-                print("CYCLES LOG!!")
                 self.cycle_log = open(log_file + '/GC_{}_log.csv'.format(self.gc_id), 'w')
                 self.cycle_log.write('injection, cycle_number, n_clones, nbs, avg_E, std_E, best_E, worst_E \n')
                 self.cycle_log.flush()
-            else:
-                self.injection_log = None
-                self.cycle_log = None
+
+            elif "B cell" in log_file:
+                self.bcell_log = open(log_file + '/GC_{}_log.csv'.format(self.gc_id), 'w')
+                self.bcell_log.write('injection, cycle_number, n_clones, nbs, avg_E, std_E, best_E, worst_E \n')
+                self.bcell_log.flush()
+            
 
         if isinstance(self.B_cells.nbs, int):
             self.GC_size_max = self.B_cells.nbs*10
@@ -156,10 +157,12 @@ class GerminalCenter(object):
 
             else:
                 # When there aren't any B Cells left there's an error for the log writing; just writing np.inf when that happens
-                self.injection_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
-                    self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
-                self.cycle_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
-                    self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
+                if self.injection_log is not None:
+                    self.injection_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
+                        self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
+                if self.cycle_log is not None:
+                    self.cycle_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
+                        self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
 
             if done:
                 if self.debug > 1:
