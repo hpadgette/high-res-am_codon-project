@@ -75,9 +75,9 @@ class GerminalCenter(object):
                 self.cycle_log = None
 
         if isinstance(self.B_cells.nbs, int):
-            self.GC_size_max = self.B_cells.nbs*3
+            self.GC_size_max = self.B_cells.nbs*10
         else:
-            self.GC_size_max = self.B_cells.nbs.sum()*3
+            self.GC_size_max = self.B_cells.nbs.sum()*10
 
     def injection(self):
         self.n_injections += 1
