@@ -7,6 +7,10 @@ high_res_am/__pycache__/
 # Bash/submission scripts
 high_res_am/submit.sh
 
+# logs and out files from sbatch
+high_res_am/*.out
+high_res_am/log/*
+
 # C extensions
 *.so
 
