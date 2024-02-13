@@ -5,6 +5,7 @@ from lymph_node import BCell, GerminalCenter
 import json
 from timeit import default_timer as timer
 from score import scoring_function
+from shutil import copyfile
 
 
 class AffinityMaturation:
@@ -29,7 +30,9 @@ class AffinityMaturation:
     def setup(self):
         
         # Create logging directory and files
-        self.output_files = self.make_outputs()
+        self.make_outputs()
+        self.save_config()
+
         self.dicAbs, self.dicAgs = self.build_Ab_Ag()
         self.make_scoring_function()
         self.Abs = list(self.dicAbs.keys())
@@ -67,18 +70,29 @@ class AffinityMaturation:
         pass
     
     def make_outputs(self):
-        
-        if self.config['log_path'] is None:
-            return None
-        elif not os.path.exists(self.config['log_path']):
-            os.makedirs(self.config['log_path'])
+        """
+        Making the log path and setting the outputs
+        """
+
+        if self.config['experiment']["logging"]:
+            for log in self.config['log_path']:
+                if log is None:
+                    return None
+                elif not os.path.exists(log):
+                    os.makedirs(log)
         else:
             print("Log path already exists! Exiting...")
             sys.exit()
         
-        #TODO: Make output files (need to check what we want to log)
+        logs = ['config']
+        for to_log in self.config['experiment']['log_level']:
+            logs.append(to_log)
+        
+        self.output_files = logs
+        
 
     def make_gcs(self):
+        
         gcs = [GerminalCenter(self.Abs,
                               self.Ags,
                               self.dicAgs,
@@ -86,7 +100,9 @@ class AffinityMaturation:
                               self.revert,
                               self.maturation_params,
                               self.score_config,
-                              self.debug) for _ in range(self.num_GCs)]
+                              self.config['log_path'],
+                              i,
+                              self.debug) for i in range(self.num_GCs)]
         return gcs
     
     def set_config(self):
@@ -104,11 +120,18 @@ class AffinityMaturation:
         """
         Save the config.json file for reproducibility
         """
-        if self.output_files is not None:
-            path = os.join.path(self.config['log_path'], 'config.json')
 
-            with open(path, 'w') as f:
+        # TODO: Need to change since we already set the log_path to a list
+
+        if self.output_files is not None:
+            config_path = os.path.join(self.config['config_path'], 'config.json')
+
+            with open(config_path, 'w') as f:
                 json.dump(self.config, f, indent=3)
+        # if len(self.output_files) > 1:
+        #     self.gc_log_paths = [os.path.join(self.config['log_path'], 'GC_{}_log.csv'.format(i)) 
+        #                     for i in range(self.config['experiment']['num_GCs'])]
+            
 
 
     def make_scoring_function(self):

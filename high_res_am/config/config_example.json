@@ -1,8 +1,10 @@
 {
     "experiment" : {
         "logging" : true,
+        "log_level" : ["injection", "cycles"],
         "exp_name" : "test",
-        "num_injections" : 5,
+        "num_GCs" : 2,
+        "num_injections" : 2,
         "score_config": {
             "scoring_function" : "singlepoint",
             "singlepoint_file" : "/projects/jofa3453/high_res_am/high_res_am/singlepoint/hiv_VRC01_ddg.csv"
@@ -30,13 +32,13 @@
         "p_CDR_lethal" : 0.30,
         "p_CDR_silent" : 0.00,
         "p_recycle" : 0.70,
-        "p_scale": 0.15,
-        "num_GC_founders" : 5,
+        "p_scale": 0.30,
+        "num_GC_founders" : 10,
         "epsilon" : 1e-16,
         "activation_energy" : -9,
         "nb_trial" : 1,
-        "pop_size" : 50,
-        "ag_start" : 60000,
+        "pop_size" : 25,
+        "ag_start" : 75000,
         "energy_scale" : 0.9,
         "help_cutoff" : 0.70
 

@@ -30,9 +30,22 @@ def main(config, exp_name):
 
     timestamp = datetime.now().strftime("_%Y-%m-%d-%H%M%S")
     if config['experiment']['logging']:
-        config['log_path'] = os.path.join('log/', config['experiment']['exp_name'], timestamp)
+        config_path = os.path.join('log/', config['experiment']['exp_name'] + timestamp)
+        config['config_path'] = config_path
+        if len(config['experiment']['log_level']) > 1:
+            # Make two log directories for both resolution levels
+            inj_log_path = os.path.join(config_path + '/injection_logs')
+            cycle_log_path = os.path.join(config_path + '/cycle_logs')
+            
+            log_path = [inj_log_path, cycle_log_path]
+            config['log_path'] = log_path
+        else:
+            # If not just use the timestamp directory
+            log_path = config_path
+            config['log_path'] = log_path
     else:
         config['log_path'] = None
+
 
     run_AM(config)
 

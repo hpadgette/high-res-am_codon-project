@@ -23,7 +23,7 @@ class GerminalCenter(object):
 
     def __init__(self, Ab, Ags, dicAgs, dicAbs, 
                  revert, maturation_params,
-                 score_config, debug=0):
+                 score_config, log_paths, gc_id, debug=0):
         
         """ Initialize GC-specific variables. """
         self.debug = debug
@@ -53,40 +53,31 @@ class GerminalCenter(object):
         self.p_scale = self.maturation_params['p_scale']
         residues = self.dicAbs[Ab[0]]['seq']
         self.B_cells = BCell(self.gc_dict, residues=residues, nbs=self.seed_nbs)
-
+        self.gc_id = gc_id
         self.flag = self.maturation_params['flag']
-        # Multiple Antigens (2 or 3)
-        # elif flag == 2 or flag == 3:
 
-            # Get founders for each GC from a random choice
-            # Aren't all of these the same??
-            # id_founding_cells = np.random.choice(len(founderseq), nb_GC_founders_I2or3, replace=False)
+        # Log paths should always be fed as a list regardless of the number of log levels
+        print("ALL LOG PATHS: ", log_paths)
+        for log_file in log_paths:
+            print("LOG FILE: ", log_file)
+            if "injection" in log_file:
+                print("INJECTION LOG!!")
+                self.injection_log = open(log_file + '/GC_{}_log.csv'.format(self.gc_id), 'w')
+                self.injection_log.write('injection, cycle_number, n_clones, nbs, avg_E, std_E, best_E, worst_E \n')
+                self.injection_log.flush()
+            elif "cycle" in log_file:
+                print("CYCLES LOG!!")
+                self.cycle_log = open(log_file + '/GC_{}_log.csv'.format(self.gc_id), 'w')
+                self.cycle_log.write('injection, cycle_number, n_clones, nbs, avg_E, std_E, best_E, worst_E \n')
+                self.cycle_log.flush()
+            else:
+                self.injection_log = None
+                self.cycle_log = None
 
-            # Initialize mutation counter
-            # cdr_mut = []
-            # Iterate over each of the sequences in the founderseq set
-            # for seq in founderseq:
-
-                # Tally the changes between the current nt_seq and the GL_nt_seq
-                # mutations_aa = [i for i in range(len(VRC01GL_nt_str)) if VRC01GL_nt_str[i] != seq[i]]
-                # cdr_mut.append(len(mutations_aa))
-
-                # Generate memory_founders with the current sequences
-                # Is this just to keep track of the changes?
-            # self.memory_founders = [BCell(residues=founderseq[id_founding_cells[i]], nb_CDR_mut=cdr_mut[id_founding_cells[i]]) for i in
-            #            range(nb_GC_founders_I2or3)]
-
-        # print("The residues in GC __init__ are:", residues)
-        # self.memory_cells = BCell(residues=None)
-        # self.plasma_cells = BCell(residues=None)
-
-        # all founders replicate and are recycled
-        # maximum number of cells in the GC (= initial population size)
-        # self.GC_size_max = self.B_cells.nbs
         if isinstance(self.B_cells.nbs, int):
-            self.GC_size_max = self.B_cells.nbs*10
+            self.GC_size_max = self.B_cells.nbs*3
         else:
-            self.GC_size_max = self.B_cells.nbs.sum()*10
+            self.GC_size_max = self.B_cells.nbs.sum()*3
 
     def injection(self):
         self.n_injections += 1
@@ -105,8 +96,9 @@ class GerminalCenter(object):
 
             # Set current B Cells to be memory founders
             self.B_cells = self.memory_founders
-            print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
-            self.activation_energy = np.mean(self.B_cells.E) + 2.0
+            if self.B_cells.nbs.sum() > 1:
+                print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
+            # self.activation_energy = np.mean(self.B_cells.E) + 3.0
             # If there aren't any B Cells, exit since the GC has expired
             if isinstance(self.B_cells.nbs, int):
                 if self.B_cells.nbs == 0:
@@ -127,13 +119,48 @@ class GerminalCenter(object):
             neither flag is raised, it will then add 1 to the current cycle_number.
             """
             print("Done with GC Cycle!")
-            print("Average deltaG for cycle {}: {}".format(self.cycle_number, np.average(self.B_cells.E, weights=self.B_cells.nbs)))
+            if len(self.B_cells.nbs) > 1:
+                print("Average deltaG for cycle {}: {}".format(self.cycle_number, np.average(self.B_cells.E, weights=self.B_cells.nbs)))
             print("There are {} Ags left for the next cycle!".format(self.ag_left))
             done, exceed_size_flag, ag_left_flag = self.test_state()
             print("Done? ", done)
             print("Too Big?? ", exceed_size_flag)
             print("Are we out of antigen? ", ag_left_flag)
-            
+
+            """
+            JGF 1/30/24:
+            I think we want to add the per-injection level logging here, and have it depend on any of the flags. There may 
+            be an issue doing it this way because the GCs don't have any sort of identifier, so if we want logs for each GC
+            we need to add this. We could also just have a column in the log file for the GC identifier? Either way I think
+            we still need some sort of gc_id attribute.
+            """
+
+            if self.B_cells.nbs.sum() > 0:
+                if self.injection_log is not None:
+                    if done or exceed_size_flag or ag_left_flag:
+                        print("We're writing the log!")
+                        print("To be written\n")
+                        print("{}, {}, {}, {}, {}, {}, {}, {} \n".format(self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), 
+                            np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
+                        self.injection_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
+                            self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), 
+                            np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
+                        self.injection_log.flush()
+                if self.cycle_log is not None:
+                    print("{}, {}, {}, {}, {}, {}, {}, {} \n".format(self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), 
+                            np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
+                    self.cycle_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
+                            self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), 
+                            np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
+                    self.cycle_log.flush()
+
+            else:
+                # When there aren't any B Cells left there's an error for the log writing; just writing np.inf when that happens
+                self.injection_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
+                    self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
+                self.cycle_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
+                    self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
+
             if done:
                 if self.debug > 1:
                     print("Finished after cycle {}".format(self.cycle_number))
@@ -233,10 +260,10 @@ class GerminalCenter(object):
                 factor        = ag_conc * Ag_bounds
                 langmuir_conj = 1. / (1. + factor)
                 langmuir = 1 - langmuir_conj
-                if langmuir - ag_conc/(1+ag_conc) <= 0.01:
+                if langmuir - (ag_conc/(1+ag_conc))**ag_conc <= 0.01:
                     p_capture = 0
                 else:
-                    p_capture = (langmuir - ag_conc/(1+ag_conc)) * self.p_scale
+                    p_capture = (langmuir - (ag_conc/(1+ag_conc))**ag_conc) * self.p_scale
                 self.B_cells.prob_capture[i] = p_capture
                 
                 # remove dead cells and update binding details
@@ -273,13 +300,24 @@ class GerminalCenter(object):
             dies = binding_energies > energy_cutoff
             self.B_cells.nbs[dies] = 0
 
+            # JGF 12/14/23: Something seems to be causing issues with the cut_idx because we don't prune, and
+            # it's adding to the ties not taking away from them...
+            
+            # Pruning dead B Cells
+            self.B_cells.prune()
+            # Recomputing the cut_idx
+            nb_tot = self.B_cells.nbs.sum()
+            cut_idx = int(self.help_cutoff * nb_tot) - 1
+            binding_energies = self.B_cells.E
             # Kill a fraction of B cells exactly at threshold
             # Tie deaths are split evenly across all clones exactly at threshold
             ties = binding_energies == energy_cutoff
+            print("ties: ", ties)
+            print("cut_idx: ", cut_idx)
             n_die_tie = self.B_cells.nbs.sum() - cut_idx
             print("n_die_tie: ", n_die_tie)
             # Total number of cells to remove for clones exactly at threshold
-            fraction_die_tie = n_die_tie / self.B_cells.nbs[ties].sum()
+            fraction_die_tie = n_die_tie / self.B_cells.nbs.sum()
             print("fraction_die_tie: ", fraction_die_tie)
             print("total nbs pre tiedie: ", self.B_cells.nbs)
             print("nbs pre tiedie: ", self.B_cells.nbs[ties])
@@ -420,8 +458,9 @@ class GerminalCenter(object):
             should this be based on the max number each clone can get? If we use larger values then each
             clone wants thousands of Ag copies, but there would probably be way more than 1000 Ags in the GC?
             """
-            chances = int(np.round(self.ag_left/200, 0))
-            print("Chances for clone {}: {}".format(i, chances))
+            # chances = int(np.round(self.ag_left/200, 0))
+            chances = 200
+            # print("Chances for clone {}: {}".format(i, chances))
             ag_to_capture = np.random.binomial(chances, p)
             wanted_by_clone = self.B_cells.nbs[i]*ag_to_capture
             print("Energy: ", self.B_cells.E[i])
@@ -537,8 +576,6 @@ class BCell():
         self.shm_condp = condp
         self.scoring_function = scoring_function(self.score_config).__call__
         
-
-
         if 'nb_CDR_mut' in kwargs:
             self.nb_CDR_mut = kwargs['nb_CDR_mut']
         else:
@@ -578,9 +615,6 @@ class BCell():
             self.ag_captured = np.zeros(self.nbs.shape[0], dtype=int)
             self.div = np.ones(self.nbs.shape[0], dtype=int)
 
-        
-
-
         # self.prob_capture = np.array(0).reshape((1,))
         self.lenFRWH1 = self.dicAbs[self.Ab[0]]['lengths']['FRWH1_nt']
         self.lenCDRH1 = self.dicAbs[self.Ab[0]]['lengths']['CDRH1_nt']
@@ -594,7 +628,6 @@ class BCell():
         self.lenCDRL2 = self.dicAbs[self.Ab[0]]['lengths']['CDRL2_nt']
         self.lenFRWL3 = self.dicAbs[self.Ab[0]]['lengths']['FRWL3_nt']
         self.lenCDRL3 = self.dicAbs[self.Ab[0]]['lengths']['CDRL3_nt']
-
 
 
     def clone(self, residues, nbs):
@@ -628,6 +661,7 @@ class BCell():
         self.history['E'].append(self.E)
         self.history['delta_res'].append(self.delta_res)
         self.history['cycle_number'].append(self.cycle_number)
+
 
     def energy(self, Ag, cycle_number, residues):
         
@@ -675,6 +709,7 @@ class BCell():
     def calculate_breadth(self, testpanel, threshold, panelSize):
         test_energies = np.inner(testpanel, self.residues)
         return np.mean(test_energies > threshold, axis=0)
+
 
     def mutate_CDR(self, Ag, n_clones):
         print("=== Mutating CDR ===")
