@@ -104,7 +104,8 @@ class SinglePoint(ScoringFunction):
                 # print("Scoring...")
                 score += self.score_table.loc[pos, ab[pos]]
         # TODO: Make the WT score a parameter, but for now hardcoded
-        score += -10.749000037414195
+        # score += -10.749000037414195
+        score += -8.749000037414195
         return score
 
 
@@ -112,6 +113,4 @@ class PPDX(ScoringFunction):
     def ppdx_score(self, ab, ag):
         pass
 
-
-
-        
+    

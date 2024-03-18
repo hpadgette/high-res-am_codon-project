@@ -15,6 +15,7 @@ from collections import Counter
 from collections import defaultdict
 import warnings
 from score import scoring_function
+import h5py
 warnings.filterwarnings("ignore")
 
 np.random.seed()
@@ -59,20 +60,26 @@ class GerminalCenter(object):
         # Log paths should always be fed as a list regardless of the number of log levels
         print("ALL LOG PATHS: ", log_paths)
         for index, log_file in enumerate(log_paths):
-            if "injection" in log_file:
+            print(log_file)
+            if "injection_logs" in log_file:
+                print("MAKING INJECTION LOG")
                 self.injection_log = open(log_file + '/GC_{}_log.csv'.format(self.gc_id), 'w')
-                self.injection_log.write('injection, cycle_number, n_clones, nbs, avg_E, std_E, best_E, worst_E \n')
+                self.injection_log.write('injection,cycle_number,n_clones,nbs,avg_E,std_E,best_E,worst_E\n')
                 self.injection_log.flush()
         
-            elif "cycle" in log_file:
+            elif "cycle_logs" in log_file:
+                print("MAKING CYCLE LOG")
                 self.cycle_log = open(log_file + '/GC_{}_log.csv'.format(self.gc_id), 'w')
-                self.cycle_log.write('injection, cycle_number, n_clones, nbs, avg_E, std_E, best_E, worst_E \n')
+                self.cycle_log.write('injection,cycle_number,n_clones,nbs,ag_left,avg_E,std_E,best_E,worst_E\n')
                 self.cycle_log.flush()
 
-            elif "B cell" in log_file:
-                self.bcell_log = open(log_file + '/GC_{}_log.csv'.format(self.gc_id), 'w')
-                self.bcell_log.write('injection, cycle_number, n_clones, nbs, avg_E, std_E, best_E, worst_E \n')
-                self.bcell_log.flush()
+            elif "Bcell_logs" in log_file:
+                print("MAKING B CELL LOG")
+                self.bcell_logPath = log_file + '/GC_{}_log.h5'.format(self.gc_id)
+                self.bcell_log = h5py.File(log_file + '/GC_{}_log.h5'.format(self.gc_id), 'w')
+                self.numeric_dataset = self.bcell_log.create_dataset('numeric_dataset', shape=(0, 6), maxshape=(None, 6), dtype='float64')
+                self.numeric_dataset.attrs['description'] = "nbs, E, ag_captured, prob_capture, injection, cycle"
+                self.sequence_dataset = self.bcell_log.create_dataset('sequence_dataset', shape=(0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='ascii'))
             
 
         if isinstance(self.B_cells.nbs, int):
@@ -91,13 +98,27 @@ class GerminalCenter(object):
 
         # Second injection onward, use memory founders
         if self.n_injections > 1:
-            self.ag_left = self.ag_start # Reset ag_left to 1000; Change for hannah P?
+
+            self.bcell_log = h5py.File(self.bcell_logPath, 'a')
+            # Get numerical data, if it doesn't exist make a new dataset
+            if 'numeric_dataset' in self.bcell_log:
+                self.numeric_dataset = self.bcell_log['numeric_dataset']
+            else:
+                self.numeric_dataset = self.bcell_log.create_dataset('numeric_dataset', shape=(0, 6), maxshape=(None, 6), dtype='float64')
+            
+            # Get sequence data, if it doesn't exist make a new dataset
+            if 'sequence_dataset' in self.bcell_log:
+                self.sequence_dataset = self.bcell_log['sequence_dataset']
+            else:
+                self.sequence_dataset = self.bcell_log.create_dataset('sequence_dataset', shape=(0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='ascii'))
+        
+            self.ag_left = self.ag_start 
             self.cycle_number = 0  # Reset cycle number
             self.plasma_cells = BCell(self.gc_dict, residues=None, nbs=0)  # Reset plasma cells
 
             # Set current B Cells to be memory founders
             self.B_cells = self.memory_founders
-            if self.B_cells.nbs.sum() > 1:
+            if len(self.B_cells.nbs) > 1 and not isinstance(self.B_cells.nbs, int):
                 print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
             # self.activation_energy = np.mean(self.B_cells.E) + 3.0
             # If there aren't any B Cells, exit since the GC has expired
@@ -135,45 +156,48 @@ class GerminalCenter(object):
             we need to add this. We could also just have a column in the log file for the GC identifier? Either way I think
             we still need some sort of gc_id attribute.
             """
-
-            if self.B_cells.nbs.sum() > 0:
+            # if not isinstance(self.B_cells.nbs, int):
+            if len(self.B_cells.nbs) > 0:
                 if self.injection_log is not None:
                     if done or exceed_size_flag or ag_left_flag:
                         print("We're writing the log!")
                         print("To be written\n")
                         print("{}, {}, {}, {}, {}, {}, {}, {} \n".format(self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), 
                             np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
-                        self.injection_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
+                        self.injection_log.write('{},{},{},{},{},{},{},{}\n'.format(
                             self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), 
                             np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
                         self.injection_log.flush()
                 if self.cycle_log is not None:
-                    print("{}, {}, {}, {}, {}, {}, {}, {} \n".format(self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), 
-                            np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
-                    self.cycle_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
-                            self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), 
+                    print("{}, {}, {}, {}, {}, {}, {}, {}, {} \n".format(self.n_injections, self.cycle_number, len(self.B_cells.nbs), 
+                    self.ag_left, self.B_cells.nbs.sum(), np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
+                    self.cycle_log.write('{},{},{},{},{},{},{},{},{}\n'.format(
+                            self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), self.ag_left, 
                             np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
                     self.cycle_log.flush()
 
             else:
                 # When there aren't any B Cells left there's an error for the log writing; just writing np.inf when that happens
                 if self.injection_log is not None:
-                    self.injection_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
+                    self.injection_log.write('{},{},{},{},{},{},{},{}\n'.format(
                         self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
                 if self.cycle_log is not None:
-                    self.cycle_log.write('{}, {}, {}, {}, {}, {}, {}, {} \n'.format(
+                    self.cycle_log.write('{},{},{},{},{},{},{},{}\n'.format(
                         self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
 
             if done:
+                self.bcell_log.close()
                 if self.debug > 1:
                     print("Finished after cycle {}".format(self.cycle_number))
                 print('\n \n \n')
                 break
             elif exceed_size_flag:
+                self.bcell_log.close()
                 self.memory_founders = self.pick_memCells()
                 print('\n \n \n')
                 break
             elif ag_left_flag:
+                self.bcell_log.close()
                 self.memory_founders = self.pick_memCells()
                 print('\n \n \n')
                 break
@@ -213,7 +237,25 @@ class GerminalCenter(object):
             if self.debug > 2:
                 print("After dark zone, {} B clones, {} total cells".format(len(self.B_cells.nbs),
                                                                             self.B_cells.nbs.sum()))
-
+        if self.bcell_log is not None:
+            print("Logging B Cells")
+            timer_start = timer()                                                                           
+            for i in range(len(self.B_cells.nbs)):
+                floats_to_append = np.array([
+                    self.B_cells.nbs[i], 
+                    self.B_cells.E[i], 
+                    self.B_cells.prob_capture[i], 
+                    self.B_cells.ag_captured[i],
+                    self.n_injections,
+                    self.cycle_number])
+                sequence_to_append = self.B_cells.residues[i][0]
+                print("floats: ", floats_to_append)
+                print("seq: ", sequence_to_append)
+                self.append_data(floats_to_append, sequence_to_append)
+            timer_end = timer()
+            print("Time to log B Cells: {}".format(timer_end - timer_start))
+            
+            
     def run_dark_zone_old(self, nb_rounds=2):
         """ B cells proliferate and undergo SHM in the dark zone. """
         for i in range(nb_rounds):
@@ -421,7 +463,7 @@ class GerminalCenter(object):
             done = False
             ag_left_flag = False
 
-        elif self.ag_left/self.ag_start < 0.05:
+        elif self.ag_left/self.ag_start < 0.2:
             ag_left_flag = True
             done = False
             exceed_size_flag = False
@@ -531,7 +573,19 @@ class GerminalCenter(object):
         #             self.B_cells.div[i] = 2
         #         else:
         #             self.B_cells.div[i] = 1
+    
+    def append_data(self, numeric_data, sequence_data):
+        # Append numeric data
+        current_numeric_length = self.numeric_dataset.shape[0]
+        new_numeric_length = current_numeric_length + 1
+        self.numeric_dataset.resize((new_numeric_length, 6))
+        self.numeric_dataset[current_numeric_length] = numeric_data
 
+        # Append string data
+        current_string_length = self.sequence_dataset.shape[0]
+        new_string_length = current_string_length + 1
+        self.sequence_dataset.resize((new_string_length,))
+        self.sequence_dataset[current_string_length] = sequence_data.encode('ascii')
 
 class BCell():
     
@@ -878,14 +932,11 @@ class BCell():
 
         # Add clones to be mutated in mutate_CDR()
         self.clone(new_residues, nbs=int(1))
+        
         # Mutate clones
         self.mutate_CDR(Ag, new_residues.shape[0])
-        # for item in self.nbs:
-            # ftrack.write("nbs: %d" % item)
-        # ftrack.write('\n')
-        # ftrack.flush()
-
-        # Prune clones that are dead
+        
+        # Prune clones
         self.prune()
 
     """
