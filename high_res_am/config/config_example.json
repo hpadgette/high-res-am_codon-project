@@ -2,8 +2,8 @@
     "experiment" : {
         "logging" : true,
         "log_level" : ["injection", "cycles", "B Cell"],
-        "exp_name" : "test",
-        "num_GCs" : 2,
+        "exp_name" : "final_param_test_3",
+        "num_GCs" : 3,
         "num_injections" : 2,
         "score_config": {
             "scoring_function" : "singlepoint",
@@ -32,15 +32,16 @@
         "p_CDR_lethal" : 0.30,
         "p_CDR_silent" : 0.00,
         "p_recycle" : 0.70,
-        "p_scale": 0.30,
+        "p_scale": 0.25,
         "num_GC_founders" : 10,
         "epsilon" : 1e-16,
-        "activation_energy" : -9,
+        "activation_energy" : -8,
         "nb_trial" : 1,
-        "pop_size" : 25,
-        "ag_start" : 75000,
+        "pop_size" : 100,
+        "ag_start" : 50000,
         "energy_scale" : 0.9,
-        "help_cutoff" : 0.70
+        "help_cutoff" : 0.70,
+        "Prob_Metric" : [0.6, 0.3, 0.1]
 
     }
 }

@@ -36,6 +36,10 @@ class GerminalCenter(object):
         self.p_exit = self.maturation_params['p_exit']
         self.p_recycle = self.maturation_params['p_recycle']
         self.activation_energy = self.maturation_params['activation_energy']
+        
+        # Adding prob_metric for multiple epitopes
+        self.prob_metric = self.maturation_params['prob_metric']
+        
         self.Ab = Ab
         self.Ags = Ags
         self.energy_scale = self.maturation_params['energy_scale']
@@ -45,7 +49,11 @@ class GerminalCenter(object):
         self.help_cutoff = self.maturation_params['help_cutoff']
         self.score_config = score_config
         self.parent_seq = self.dicAbs[Ab[0]]['seq']
+        
+        
         self.gc_dict = deepcopy(self.__dict__)
+
+
         self.memory_cells = BCell(self.gc_dict, residues=None, nbs=1)
         self.memory_founders = BCell(self.gc_dict, residues=None, nbs=1)
         self.seed_nbs = self.maturation_params['pop_size']
@@ -609,6 +617,7 @@ class BCell():
             gc_dict.pop('memory_cells')
         elif 'memory_founders' in gc_dict:
             gc_dict.pop('memory_founders')
+        #TODO: I think this is bugged, doesn't seem to be loading in the gc_dict as expected
         for k, v in gc_dict.items():
             self.__dict__[k] = v
         self.residues = residues
@@ -623,6 +632,7 @@ class BCell():
             self.p_CDR_silent = self.maturation_params['p_CDR_silent']
             self.p_CDR_lethal = self.maturation_params['p_CDR_lethal']
             self.p_CDR = self.maturation_params['p_CDR']
+            self.p_metric = self.maturation_params['prob_metric']
 
         # Conditional p values used in vectorized_multinomial() are repeated often, so compute them once here.
         p = np.array([self.p_CDR_lethal, self.p_CDR_silent, self.p_CDR_affect])
@@ -724,6 +734,15 @@ class BCell():
         
         """ Return binding energy with input antigen. """
         
+        # Choosing epitope to bind based on list of probabilities in p_metric
+        # This should return the index of the choice e.g. for p_metric = [0.9, 0.1] there is a 90% chance
+        # it will return 0, and a 10% chance it returns 1
+        if isinstance(self.p_metric, list):
+            binding_site = random.choices(range(len(self.p_metric)), weights=self.p_metric, k=1)[0]
+            print("Binding Site Index: ", binding_site)
+        else:
+            binding_site = 0
+        
         # Convert to Bio nt_seq
         Ab_nt = Seq(residues)
 
@@ -736,7 +755,7 @@ class BCell():
             if self.score_config['scoring_function'] == 'singlepoint':
                 dg = self.scoring_function(ab=Ab, wt_ab=self.parent_seq)
             else:
-                dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab)
+                dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab, binding_site=binding_site)
         else:
             dg = 100
         # print("deltaG: ", dg)

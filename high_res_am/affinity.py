@@ -81,8 +81,8 @@ class AffinityMaturation:
                 elif not os.path.exists(log):
                     os.makedirs(log)
         else:
-            print("Log path already exists! Exiting...")
-            sys.exit()
+            print("You aren't logging! Here's your warning!")
+            # sys.exit()
         
         logs = ['config']
         for to_log in self.config['experiment']['log_level']:
