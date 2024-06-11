@@ -2,7 +2,7 @@
     "experiment" : {
         "logging" : true,
         "log_level" : ["injection", "cycles", "B Cell"],
-        "exp_name" : "final_param_test_3",
+        "exp_name" : "BG505_VRC01_replicate_1",
         "num_GCs" : 3,
         "num_injections" : 2,
         "score_config": {
@@ -40,8 +40,7 @@
         "pop_size" : 100,
         "ag_start" : 50000,
         "energy_scale" : 0.9,
-        "help_cutoff" : 0.70,
-        "Prob_Metric" : [0.6, 0.3, 0.1]
+        "help_cutoff" : 0.70
 
     }
 }
