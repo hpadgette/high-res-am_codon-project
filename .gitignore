@@ -5,12 +5,14 @@ __pycache__/
 high_res_am/__pycache__/
 
 # Bash/submission scripts
-high_res_am/submit.sh
+high_res_am/*.sh
 
 # logs and out files from sbatch
 high_res_am/*.out
 high_res_am/log/*
 high_res_am/analysis/
+high_res_am/config/*
+high_res_am/*.swp
 # C extensions
 *.so
 
