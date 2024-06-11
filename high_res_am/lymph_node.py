@@ -36,6 +36,10 @@ class GerminalCenter(object):
         self.p_exit = self.maturation_params['p_exit']
         self.p_recycle = self.maturation_params['p_recycle']
         self.activation_energy = self.maturation_params['activation_energy']
+        
+        # Adding prob_metric for multiple epitopes
+        self.prob_metric = self.maturation_params['prob_metric']
+        
         self.Ab = Ab
         self.Ags = Ags
         self.energy_scale = self.maturation_params['energy_scale']
@@ -45,7 +49,11 @@ class GerminalCenter(object):
         self.help_cutoff = self.maturation_params['help_cutoff']
         self.score_config = score_config
         self.parent_seq = self.dicAbs[Ab[0]]['seq']
+        
+        
         self.gc_dict = deepcopy(self.__dict__)
+
+
         self.memory_cells = BCell(self.gc_dict, residues=None, nbs=1)
         self.memory_founders = BCell(self.gc_dict, residues=None, nbs=1)
         self.seed_nbs = self.maturation_params['pop_size']
@@ -118,8 +126,8 @@ class GerminalCenter(object):
 
             # Set current B Cells to be memory founders
             self.B_cells = self.memory_founders
-            if len(self.B_cells.nbs) > 1 and not isinstance(self.B_cells.nbs, int):
-                print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
+            # if len(self.B_cells.nbs) > 1 and not isinstance(self.B_cells.nbs, int):
+                # print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
             # self.activation_energy = np.mean(self.B_cells.E) + 3.0
             # If there aren't any B Cells, exit since the GC has expired
             if isinstance(self.B_cells.nbs, int):
@@ -249,8 +257,9 @@ class GerminalCenter(object):
                     self.n_injections,
                     self.cycle_number])
                 sequence_to_append = self.B_cells.residues[i][0]
-                print("floats: ", floats_to_append)
-                print("seq: ", sequence_to_append)
+                # print("RESIDUES FOR THE LOG: ", self.B_cells.residues[i][0])
+                # print("floats: ", floats_to_append)
+                # print("seq: ", sequence_to_append)
                 self.append_data(floats_to_append, sequence_to_append)
             timer_end = timer()
             print("Time to log B Cells: {}".format(timer_end - timer_start))
@@ -390,7 +399,13 @@ class GerminalCenter(object):
             else:
                 self.memory_cells.clone(new_memory_cells.residues, new_memory_cells.nbs)  # Always add memory cells
         else:
-            self.memory_cells = new_memory_cells  # Always add memory cells
+            # TODO: (JGF) I think this should be replaced with appending the memory cells each time this
+            # function gets called. Otherwise, the memory cells only can be sampled from the last iteration.
+            # I would think that it's more accurate to have most of the memory cells pulled from the point in AM
+            # where they look similar to the germline. Plus, then we don't have to tune how many GL vs mem_cells.
+            # Need to add an append_mem_cells() function I think, or add it to this.
+            if new_memory_cells.nbs.sum() > 0:
+                self.memory_cells.append_mem_cells(new_memory_cells)  # Always add memory cells
 
     def pick_memCells(self):
         print("=== Picking Memory Cells ===")
@@ -609,6 +624,7 @@ class BCell():
             gc_dict.pop('memory_cells')
         elif 'memory_founders' in gc_dict:
             gc_dict.pop('memory_founders')
+        #TODO: I think this is bugged, doesn't seem to be loading in the gc_dict as expected
         for k, v in gc_dict.items():
             self.__dict__[k] = v
         self.residues = residues
@@ -623,6 +639,7 @@ class BCell():
             self.p_CDR_silent = self.maturation_params['p_CDR_silent']
             self.p_CDR_lethal = self.maturation_params['p_CDR_lethal']
             self.p_CDR = self.maturation_params['p_CDR']
+            self.p_metric = self.maturation_params['prob_metric']
 
         # Conditional p values used in vectorized_multinomial() are repeated often, so compute them once here.
         p = np.array([self.p_CDR_lethal, self.p_CDR_silent, self.p_CDR_affect])
@@ -671,7 +688,24 @@ class BCell():
             print("RESIDUES SHAPE FOR NEW B CELLS: ", self.residues.shape)
             self.ag_captured = np.zeros(self.nbs.shape[0], dtype=int)
             self.div = np.ones(self.nbs.shape[0], dtype=int)
-
+        
+        if gc_dict['maturation_params']['split_founders'] and isinstance(self.nbs, int):
+            nbs = int(np.round(nbs/self.maturation_params['num_GC_founders']))
+            self.nbs = np.repeat(nbs, self.maturation_params['num_GC_founders'])
+            # print("NBS INIT: ", self.nbs)
+            # print("LENGTH NBS: ", len(self.nbs))
+            self.E = np.repeat(self.E[0], self.maturation_params['num_GC_founders'])
+            # print("E INIT: ", self.E)
+            # print("LENGTH E: ", len(self.E))
+            self.ag_captured = np.repeat(0, self.maturation_params['num_GC_founders'])
+            # print("AG INIT: ", self.ag_captured)
+            # print("LENGTH AG: ", len(self.ag_captured))
+            self.div = np.repeat(1, self.maturation_params['num_GC_founders'])
+            # print("DIV INIT: ", self.div)
+            # print("LENGTH DIV: ", len(self.div))
+            for i in range(0, self.maturation_params['num_GC_founders']-1):
+                self.residues = np.vstack([self.residues, residues])
+            # print("LENGTH RESIDUES: ", len(self.residues))
         # self.prob_capture = np.array(0).reshape((1,))
         self.lenFRWH1 = self.dicAbs[self.Ab[0]]['lengths']['FRWH1_nt']
         self.lenCDRH1 = self.dicAbs[self.Ab[0]]['lengths']['CDRH1_nt']
@@ -724,6 +758,15 @@ class BCell():
         
         """ Return binding energy with input antigen. """
         
+        # Choosing epitope to bind based on list of probabilities in p_metric
+        # This should return the index of the choice e.g. for p_metric = [0.9, 0.1] there is a 90% chance
+        # it will return 0, and a 10% chance it returns 1
+        if isinstance(self.p_metric, list):
+            binding_site = random.choices(range(len(self.p_metric)), weights=self.p_metric, k=1)[0]
+            print("Binding Site Index: ", binding_site)
+        else:
+            binding_site = 0
+        
         # Convert to Bio nt_seq
         Ab_nt = Seq(residues)
 
@@ -736,7 +779,7 @@ class BCell():
             if self.score_config['scoring_function'] == 'singlepoint':
                 dg = self.scoring_function(ab=Ab, wt_ab=self.parent_seq)
             else:
-                dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab)
+                dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab, binding_site=binding_site)
         else:
             dg = 100
         # print("deltaG: ", dg)
@@ -959,6 +1002,21 @@ class BCell():
         #
         #     # Prune clones with nbs <= 0
         #     self.prune()
+    def append_mem_cells(self, new_memory_cells):
+        """ 
+        Function to append memory cells rather than overwrite them 
+
+            Inputs:
+                self (current memory_cells);
+                new_memory_cells generated in GerminalCenter.run_recycle()
+            Output:
+                Appended memory_cells population to choose new founders from all memory cells
+        """
+        self.residues = np.vstack([self.residues, new_memory_cells.residues])
+        self.nbs = np.concatenate([self.nbs, new_memory_cells.nbs])
+        self.E = np.concatenate([self.E, new_memory_cells.E])
+        self.ag_captured = np.concatenate([self.ag_captured, new_memory_cells.ag_captured])
+        self.div = np.concatenate([self.div, new_memory_cells.div])
 
     def prune(self):
         print("=== Pruning ===")
