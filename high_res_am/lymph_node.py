@@ -126,8 +126,8 @@ class GerminalCenter(object):
 
             # Set current B Cells to be memory founders
             self.B_cells = self.memory_founders
-            if len(self.B_cells.nbs) > 1 and not isinstance(self.B_cells.nbs, int):
-                print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
+            # if len(self.B_cells.nbs) > 1 and not isinstance(self.B_cells.nbs, int):
+                # print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
             # self.activation_energy = np.mean(self.B_cells.E) + 3.0
             # If there aren't any B Cells, exit since the GC has expired
             if isinstance(self.B_cells.nbs, int):
@@ -257,8 +257,9 @@ class GerminalCenter(object):
                     self.n_injections,
                     self.cycle_number])
                 sequence_to_append = self.B_cells.residues[i][0]
-                print("floats: ", floats_to_append)
-                print("seq: ", sequence_to_append)
+                # print("RESIDUES FOR THE LOG: ", self.B_cells.residues[i][0])
+                # print("floats: ", floats_to_append)
+                # print("seq: ", sequence_to_append)
                 self.append_data(floats_to_append, sequence_to_append)
             timer_end = timer()
             print("Time to log B Cells: {}".format(timer_end - timer_start))
@@ -398,7 +399,13 @@ class GerminalCenter(object):
             else:
                 self.memory_cells.clone(new_memory_cells.residues, new_memory_cells.nbs)  # Always add memory cells
         else:
-            self.memory_cells = new_memory_cells  # Always add memory cells
+            # TODO: (JGF) I think this should be replaced with appending the memory cells each time this
+            # function gets called. Otherwise, the memory cells only can be sampled from the last iteration.
+            # I would think that it's more accurate to have most of the memory cells pulled from the point in AM
+            # where they look similar to the germline. Plus, then we don't have to tune how many GL vs mem_cells.
+            # Need to add an append_mem_cells() function I think, or add it to this.
+            if new_memory_cells.nbs.sum() > 0:
+                self.memory_cells.append_mem_cells(new_memory_cells)  # Always add memory cells
 
     def pick_memCells(self):
         print("=== Picking Memory Cells ===")
@@ -681,7 +688,24 @@ class BCell():
             print("RESIDUES SHAPE FOR NEW B CELLS: ", self.residues.shape)
             self.ag_captured = np.zeros(self.nbs.shape[0], dtype=int)
             self.div = np.ones(self.nbs.shape[0], dtype=int)
-
+        
+        if gc_dict['maturation_params']['split_founders'] and isinstance(self.nbs, int):
+            nbs = int(np.round(nbs/self.maturation_params['num_GC_founders']))
+            self.nbs = np.repeat(nbs, self.maturation_params['num_GC_founders'])
+            # print("NBS INIT: ", self.nbs)
+            # print("LENGTH NBS: ", len(self.nbs))
+            self.E = np.repeat(self.E[0], self.maturation_params['num_GC_founders'])
+            # print("E INIT: ", self.E)
+            # print("LENGTH E: ", len(self.E))
+            self.ag_captured = np.repeat(0, self.maturation_params['num_GC_founders'])
+            # print("AG INIT: ", self.ag_captured)
+            # print("LENGTH AG: ", len(self.ag_captured))
+            self.div = np.repeat(1, self.maturation_params['num_GC_founders'])
+            # print("DIV INIT: ", self.div)
+            # print("LENGTH DIV: ", len(self.div))
+            for i in range(0, self.maturation_params['num_GC_founders']-1):
+                self.residues = np.vstack([self.residues, residues])
+            # print("LENGTH RESIDUES: ", len(self.residues))
         # self.prob_capture = np.array(0).reshape((1,))
         self.lenFRWH1 = self.dicAbs[self.Ab[0]]['lengths']['FRWH1_nt']
         self.lenCDRH1 = self.dicAbs[self.Ab[0]]['lengths']['CDRH1_nt']
@@ -978,6 +1002,21 @@ class BCell():
         #
         #     # Prune clones with nbs <= 0
         #     self.prune()
+    def append_mem_cells(self, new_memory_cells):
+        """ 
+        Function to append memory cells rather than overwrite them 
+
+            Inputs:
+                self (current memory_cells);
+                new_memory_cells generated in GerminalCenter.run_recycle()
+            Output:
+                Appended memory_cells population to choose new founders from all memory cells
+        """
+        self.residues = np.vstack([self.residues, new_memory_cells.residues])
+        self.nbs = np.concatenate([self.nbs, new_memory_cells.nbs])
+        self.E = np.concatenate([self.E, new_memory_cells.E])
+        self.ag_captured = np.concatenate([self.ag_captured, new_memory_cells.ag_captured])
+        self.div = np.concatenate([self.div, new_memory_cells.div])
 
     def prune(self):
         print("=== Pruning ===")
