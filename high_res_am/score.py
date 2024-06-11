@@ -100,7 +100,7 @@ class SinglePoint(ScoringFunction):
         
         # Pivot the table (fill = 0 for missing values since the only missing values are WT)
         df = df.pivot_table(index='pos', columns='mut', values='ddg', fill_value=0)
-        df.index += 1
+        # df.index += 1
         self.score_table = df
 
     def __call__(self, ab, wt_ab):
@@ -111,11 +111,15 @@ class SinglePoint(ScoringFunction):
         ab = list(ab)
         for pos, wt_aa in enumerate(wt_ab):
             if wt_aa != ab[pos]:
+                temp_pos = pos
+                if pos > 118:
+                    temp_pos -= 1
                 # print("Scoring...")
-                score += self.score_table.loc[pos, ab[pos]]
+                score += self.score_table.loc[temp_pos, ab[temp_pos]]
         # TODO: Make the WT score a parameter, but for now hardcoded
         # score += -10.749000037414195
-        score += -8.749000037414195
+        score += -10.695887448087346
+        # score += -8.749000037414195
         return score
 
 
