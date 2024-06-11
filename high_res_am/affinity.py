@@ -74,20 +74,30 @@ class AffinityMaturation:
         Making the log path and setting the outputs
         """
 
-        if self.config['experiment']["logging"]:
-            for log in self.config['log_path']:
-                if log is None:
-                    continue
-                elif not os.path.exists(log):
-                    os.makedirs(log)
-        else:
-            print("You aren't logging! Here's your warning!")
-            # sys.exit()
+        if self.config['experiment']["logging"]: # logging = true in the configuration json file
+
+            if isinstance(self.config['log_path'], str): # logging = true, log_level UNDEFINED
+                print('WARNING: you have specified log_level=true but have failed to provide log_levels. Saving only your config file...') 
+
+            else: # logging = true, log_level DEFINED as either a string or array of strings
+                for log in (log for log in self.config['log_path'] if log is not None):
+                    if not os.path.exists(log):
+                        os.makedirs(log)
+                    else: 
+                        print('Log path already exists! Exiting...')
+                        sys.exit()
+    
+        else: # logging = false in the experiment config file
+            self.config['experiment']['log_level'] = [] 
+
+        # if the log_level is given as a string of non-zero length, put it into an array
+        if isinstance(self.config['experiment']['log_level'], str) and len(self.config['experiment']['log_level']) > 0:
+            self.config['experiment']['log_level']=[self.config['experiment']['log_level']]
         
         logs = ['config']
         for to_log in self.config['experiment']['log_level']:
-            logs.append(to_log)
-        
+            logs.append(to_log) 
+
         self.output_files = logs
         
 
@@ -164,7 +174,6 @@ class AffinityMaturation:
             for region, seq in list(self.config['antibody']['antibody_seq'].items()):
                 str_seq += seq
                 len_of_each_region[region] = len(seq)
-            
 
             dicAbs = {
                 Ab : {
