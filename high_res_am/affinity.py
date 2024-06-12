@@ -1,12 +1,13 @@
 import os
 import csv
 import sys
-from lymph_node import BCell, GerminalCenter
 import json
 from timeit import default_timer as timer
-from score import scoring_function
 from shutil import copyfile
 
+# 10Jun24, HMP: importing functions and classes from other parts of this code repo
+from lymph_node import BCell, GerminalCenter
+from score import scoring_function
 
 class AffinityMaturation:
     """
@@ -20,7 +21,6 @@ class AffinityMaturation:
     
     Attributes
     ----------------------------------------
-    
     """
 
     def __init__(self, config=None):
@@ -28,18 +28,18 @@ class AffinityMaturation:
         self.set_config()
 
     def setup(self):
-        
-        # Create logging directory and files
-        self.make_outputs()
-        self.save_config()
 
-        self.dicAbs, self.dicAgs = self.build_Ab_Ag()
+        # 10Jun24, HMP: create logging directory and files; skip if debugging (debug==1)
+        if self.config['experiment']['debug']==0:
+            self.make_outputs() 
+            self.save_config()
+
+        self.dicAbs, self.dicAgs = self.build_Ab_Ag() # make dictionary of Abs and Ags
         self.make_scoring_function()
-        self.Abs = list(self.dicAbs.keys())
-        self.Ags = list(self.dicAgs.keys())
-        
+        self.Abs = list(self.dicAbs.keys()) 
+        self.Ags = list(self.dicAgs.keys()) 
         self.n_injections = self.config['experiment']['num_injections']
-        
+
         # Make the germinal centers (keep this last to avoid errors)
         self.gcs = self.make_gcs()
     
@@ -63,36 +63,27 @@ class AffinityMaturation:
                 break
             print("======= Finished injection {} of {} =======".format(i+1, self.n_injections))
         end = timer()
+
         print('\nTotal time: %lfs, average per GC %lfs' % ((end - start), (end - start) / float(self.num_GCs)))
     
 
-    def finish(self):
-        pass
+    # def finish(self):
+    #     pass
     
     def make_outputs(self):
         """
         Making the log path and setting the outputs
         """
 
-        if self.config['experiment']["logging"]: # logging = true in the configuration json file
-
-            if isinstance(self.config['log_path'], str): # logging = true, log_level UNDEFINED
-                print('WARNING: you have specified log_level=true but have failed to provide log_levels. Saving only your config file...') 
-
-            else: # logging = true, log_level DEFINED as either a string or array of strings
-                for log in (log for log in self.config['log_path'] if log is not None):
-                    if not os.path.exists(log):
-                        os.makedirs(log)
-                    else: 
-                        print('Log path already exists! Exiting...')
-                        sys.exit()
-    
-        else: # logging = false in the experiment config file
-            self.config['experiment']['log_level'] = [] 
-
-        # if the log_level is given as a string of non-zero length, put it into an array
-        if isinstance(self.config['experiment']['log_level'], str) and len(self.config['experiment']['log_level']) > 0:
-            self.config['experiment']['log_level']=[self.config['experiment']['log_level']]
+        if self.config['experiment']["logging"]:
+            for log in self.config['log_path']:
+                if log is None:
+                    continue
+                elif not os.path.exists(log):
+                    os.makedirs(log)
+        else:
+            print("Log path already exists! Exiting...")
+            sys.exit()
         
         logs = ['config']
         for to_log in self.config['experiment']['log_level']:
@@ -100,9 +91,8 @@ class AffinityMaturation:
 
         self.output_files = logs
         
-
     def make_gcs(self):
-        
+
         gcs = [GerminalCenter(self.Abs,
                               self.Ags,
                               self.dicAgs,
@@ -113,6 +103,7 @@ class AffinityMaturation:
                               self.config['log_path'],
                               i,
                               self.debug) for i in range(self.num_GCs)]
+
         return gcs
     
     def set_config(self):
@@ -121,58 +112,51 @@ class AffinityMaturation:
         """
 
         self.num_GCs = self.config['experiment']['num_GCs']
-        self.revert = self.config['experiment']['revert']
+        self.revert = self.config['experiment']['revert'] 
         self.score_config = self.config['experiment']['score_config']
         self.maturation_params = self.config['maturation_parameters']
-        self.debug = self.config['experiment']['debug']
+        self.debug = self.config['experiment']['debug'] 
 
     def save_config(self):
         """
-        Save the config.json file for reproducibility
+        save the config.json file for reproducibility
         """
 
-        # TODO: Need to change since we already set the log_path to a list
-
-        if self.output_files is not None:
+        if self.output_files is not None: # 10Jun24, HMP: this is ALWAYS true!
+            print('Generating a copy of your configuration file, saved as config.json, in the /log directory for this experiment.') # hannah - revisit
             config_path = os.path.join(self.config['config_path'], 'config.json')
-
-            with open(config_path, 'w') as f:
+            with open(config_path, 'w') as f: 
                 json.dump(self.config, f, indent=3)
-        # if len(self.output_files) > 1:
-        #     self.gc_log_paths = [os.path.join(self.config['log_path'], 'GC_{}_log.csv'.format(i)) 
-        #                     for i in range(self.config['experiment']['num_GCs'])]
-            
-
 
     def make_scoring_function(self):
         """
         Make the scoring function
         """
+
         self.scoring_function = scoring_function(self.score_config)
     
     def build_Ab_Ag(self):
         """
         Make the GL antibody and antigen
         """
-        
+
         # Build antigens
 
-        # May need to change this for Hannah to do a concentration profile
+        # JGF note - May need to change this for Hannah to do a concentration profile
         # Might not want to enumerate over the antigen_seqs, since they'll be the same.
         # Maybe could just take the index out of concentration
-        for i, Ag in enumerate(self.config['antigen']['antigen_seqs']):
+        for i, Ag in enumerate(self.config['antigen']['antigen_seqs']): # if not a cocktail, i = 0, Ag = the only sequence defined in "antigen_seqs"
             dicAgs = {
                 self.config['antigen']['antigen_names'][i]:{'seq' : [Ag],
-                                                    'conc' : self.config['antigen']['concentration']}
+                                                            'conc' : self.config['antigen']['concentration']}
+                                                            
                 }
-        
+            
         # Build GL antibody
-
         for i, Ab in enumerate(self.config['antibody']['antibody_names']):
             str_seq = ''
             len_of_each_region = dict()
             for region, seq in list(self.config['antibody']['antibody_seq'].items()):
-                str_seq += seq
                 len_of_each_region[region] = len(seq)
 
             dicAbs = {
@@ -182,4 +166,6 @@ class AffinityMaturation:
                     'lengths' : len_of_each_region
                 }
             }
+
+
         return dicAbs, dicAgs
