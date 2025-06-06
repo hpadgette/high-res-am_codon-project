@@ -4,6 +4,7 @@ import sys
 import json
 from timeit import default_timer as timer
 from shutil import copyfile
+from itertools import compress
 
 # 10Jun24, HMP: importing functions and classes from other parts of this code repo
 from lymph_node import BCell, GerminalCenter
@@ -45,7 +46,7 @@ class AffinityMaturation:
     
     def injection(self):
         dones = [gc.injection() for gc in self.gcs]
-        return all(dones)
+        return dones
     
     def run(self):
         """
@@ -58,9 +59,14 @@ class AffinityMaturation:
         start = timer()
         for i in range(self.n_injections):
             print("======= Starting injection {} of {} =======".format(i+1, self.n_injections))
-            done = self.injection()
-            if done:
+            print("GCs: {}".format(len(self.gcs)))
+            dones = self.injection()
+            if all(dones):
                 break
+            survive = [False if i == True else True for i in dones]
+            self.gcs = list(compress(self.gcs, survive))
+            print("GCs that perished: {}".format(dones))
+            print("GCs Post-Perish: {}".format(len(self.gcs)))
             print("======= Finished injection {} of {} =======".format(i+1, self.n_injections))
         end = timer()
 
@@ -158,6 +164,7 @@ class AffinityMaturation:
             len_of_each_region = dict()
             for region, seq in list(self.config['antibody']['antibody_seq'].items()):
                 len_of_each_region[region] = len(seq)
+                str_seq += seq
 
             dicAbs = {
                 Ab : {

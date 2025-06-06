@@ -35,7 +35,7 @@ class GerminalCenter(object):
         self.num_GC_founders = self.maturation_params['num_GC_founders']
         self.p_exit = self.maturation_params['p_exit']
         self.p_recycle = self.maturation_params['p_recycle']
-        self.activation_energy = self.maturation_params['activation_energy']
+        
         
         # Adding prob_metric for multiple epitopes
         self.prob_metric = self.maturation_params['prob_metric']
@@ -50,7 +50,13 @@ class GerminalCenter(object):
         self.score_config = score_config
         self.parent_seq = self.dicAbs[Ab[0]]['seq']
         
+        # Set fixed activation energy
+        # self.activation_energy = self.maturation_params['activation_energy']
         
+        # Set fixed delta between GL and E_a (hardcoded to be +0.75 kcal/mol for now)
+        self.activation_energy = self.score_config['WT'] + 0.75
+
+
         self.gc_dict = deepcopy(self.__dict__)
 
 
@@ -91,9 +97,9 @@ class GerminalCenter(object):
             
 
         if isinstance(self.B_cells.nbs, int):
-            self.GC_size_max = self.B_cells.nbs*10
+            self.GC_size_max = self.B_cells.nbs * 10
         else:
-            self.GC_size_max = self.B_cells.nbs.sum()*10
+            self.GC_size_max = self.B_cells.nbs.sum() * 10
 
     def injection(self):
         self.n_injections += 1
@@ -106,7 +112,7 @@ class GerminalCenter(object):
 
         # Second injection onward, use memory founders
         if self.n_injections > 1:
-
+            
             self.bcell_log = h5py.File(self.bcell_logPath, 'a')
             # Get numerical data, if it doesn't exist make a new dataset
             if 'numeric_dataset' in self.bcell_log:
@@ -126,6 +132,8 @@ class GerminalCenter(object):
 
             # Set current B Cells to be memory founders
             self.B_cells = self.memory_founders
+            print("Residues in Injection 2")
+            print(self.B_cells.residues)
             # if len(self.B_cells.nbs) > 1 and not isinstance(self.B_cells.nbs, int):
                 # print("Activation Energy for Injection {}: {}".format(self.n_injections, np.mean(self.B_cells.E)+1))
             # self.activation_energy = np.mean(self.B_cells.E) + 3.0
@@ -176,6 +184,7 @@ class GerminalCenter(object):
                             self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), 
                             np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
                         self.injection_log.flush()
+                        os.fsync(self.injection_log.fileno())
                 if self.cycle_log is not None:
                     print("{}, {}, {}, {}, {}, {}, {}, {}, {} \n".format(self.n_injections, self.cycle_number, len(self.B_cells.nbs), 
                     self.ag_left, self.B_cells.nbs.sum(), np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
@@ -183,15 +192,20 @@ class GerminalCenter(object):
                             self.n_injections, self.cycle_number, len(self.B_cells.nbs), self.B_cells.nbs.sum(), self.ag_left, 
                             np.mean(self.B_cells.E), np.std(self.B_cells.E), np.min(self.B_cells.E), np.max(self.B_cells.E)))
                     self.cycle_log.flush()
+                    os.fsync(self.cycle_log.fileno())
 
             else:
                 # When there aren't any B Cells left there's an error for the log writing; just writing np.inf when that happens
                 if self.injection_log is not None:
                     self.injection_log.write('{},{},{},{},{},{},{},{}\n'.format(
                         self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
+                    self.injection_log.flush()
+                    os.fsync(self.injection_log.fileno())
                 if self.cycle_log is not None:
                     self.cycle_log.write('{},{},{},{},{},{},{},{}\n'.format(
                         self.n_injections, self.cycle_number, 0, np.inf, np.inf, np.inf, np.inf, np.inf))
+                    self.cycle_log.flush()
+                    os.fsync(self.cycle_log.fileno())
 
             if done:
                 self.bcell_log.close()
@@ -261,7 +275,9 @@ class GerminalCenter(object):
                 # print("floats: ", floats_to_append)
                 # print("seq: ", sequence_to_append)
                 self.append_data(floats_to_append, sequence_to_append)
+            self.bcell_log.flush()
             timer_end = timer()
+            
             print("Time to log B Cells: {}".format(timer_end - timer_start))
             
             
@@ -511,7 +527,6 @@ class GerminalCenter(object):
         for i in np.argsort(-1*self.B_cells.prob_capture):
             p = self.B_cells.prob_capture[i]
             
-            # JGF: Ag to capture is dependent on the number of antigens present in the GC, but
             """
             JGF: 
             Ag to capture is dependent on the number of antigens present in the GC, but
@@ -628,10 +643,7 @@ class BCell():
         for k, v in gc_dict.items():
             self.__dict__[k] = v
         self.residues = residues
-        # if self.residues is not None and isinstance(self.residues, str):
-        # print("Parent Sequence: ", self.parent_seq)
-        self.parent_seq = deepcopy(str(Seq(self.parent_seq).translate()))
-        self.parent_seq = self.parent_seq[0:118] + '/' + self.parent_seq[118:]
+        
         self.nbs = nbs
         if 'maturation_params' in gc_dict:
             self.p_mut = self.maturation_params['p_mut']
@@ -719,6 +731,16 @@ class BCell():
         self.lenCDRL2 = self.dicAbs[self.Ab[0]]['lengths']['CDRL2_nt']
         self.lenFRWL3 = self.dicAbs[self.Ab[0]]['lengths']['FRWL3_nt']
         self.lenCDRL3 = self.dicAbs[self.Ab[0]]['lengths']['CDRL3_nt']
+        # if self.residues is not None and isinstance(self.residues, str):
+        # print("Parent Sequence: ", self.parent_seq)
+        # self.parent_seq = deepcopy(str(Seq(self.parent_seq).translate()))
+        # self.parent_seq = self.parent_seq[0:118] + '/' + self.parent_seq[118:]
+        self.len_heavy_nt = self.lenFRWH1 + self.lenCDRH1 + self.lenFRWH2 + self.lenCDRH2 + self.lenFRWH3 + self.lenCDRH3
+        self.len_light_nt = self.lenFRWL1 + self.lenCDRL1 + self.lenFRWL2 + self.lenCDRL2 + self.lenFRWL3 + self.lenCDRL3
+        self.len_heavy_aa = len(str(Seq(self.parent_seq[0:self.len_heavy_nt]).translate()))
+        self.len_light_aa = len(str(Seq(self.parent_seq[self.len_heavy_nt+1:]).translate()))
+        self.parent_seq = deepcopy(str(Seq(self.parent_seq).translate()))
+        self.parent_seq = self.parent_seq[0:len_heavy_aa] + '/' + self.parent_seq[len_heavy_aa+1:]
 
 
     def clone(self, residues, nbs):
@@ -779,6 +801,7 @@ class BCell():
             if self.score_config['scoring_function'] == 'singlepoint':
                 dg = self.scoring_function(ab=Ab, wt_ab=self.parent_seq)
             else:
+                print("Ag/Ab seq to scoring funcion: {}/{}".format(Ag, Ab))
                 dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab, binding_site=binding_site)
         else:
             dg = 100
@@ -797,6 +820,11 @@ class BCell():
         #     self.generation += 1
         #     self.cycle_number = cycle_number
         # else:
+        if len(self.div) < 1:
+            print("Everyone is dead, we can't divide!")
+            print("======= Exiting =======")
+            sys.exit()
+
         print("Dividing", self.div, "times in round", cycle_number)
         pop_growth = [int(2*i) for i in self.div]
         new_ag_captured = [int(ag_captured/(2*i)) for ag_captured,i in zip(self.ag_captured,self.div)]
@@ -828,7 +856,6 @@ class BCell():
         Fivemer_index = []
         
         residues = self.residues[-n_clones:]
-        
         cln = 0
         for clone_residues in residues:
             clone_residues = clone_residues[0]
@@ -837,7 +864,6 @@ class BCell():
                     # If i is less than four spaces from the end of the sequence
                     # (i.e., there is a fivemer available)
                     if self.lenFRWH1 <= (i + 2) < self.lenFRWH1 + self.lenCDRH1:
-
                         Fivemer_index.append(i + 2)
                         Fivemer.append(str(clone_residues)[i + 0:i + 5])
                         # Appending the section of the sequence to check for mutability

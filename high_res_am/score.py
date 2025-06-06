@@ -24,7 +24,7 @@ def scoring_function(score_config):
         "ppdx" : PPDX
     }
     if score_config['scoring_function'] == 'singlepoint':
-        return SinglePoint(score_config['singlepoint_file'])
+        return SinglePoint(score_config['singlepoint_file'], score_config['WT'])
     else:
         return score_dict[score_config['scoring_function']]
 
@@ -49,7 +49,9 @@ class PPDG(ScoringFunction):
         ppdg.RFSPP = '/projects/kasp8735/software/affinity/'
 
         # Path where to find the charmm executable
-        ppdg.CHARMM = '/projects/kasp8735/software/charmm/exec/gnu/'
+        # ppdg.CHARMM = '/projects/kasp8735/software/charmm/exec/gnu/'
+
+        ppdg.CHARMM = '/projects/kasp8735/software/charmm_alpine/build/cmake/'
 
     def __call__(self, ag, ab, binding_site):
         cpxseq = '%s/%s' % (ag, ab)
@@ -59,8 +61,8 @@ class PPDG(ScoringFunction):
         print("PDB in PPDG (score.py): ", pdb)
         name = hashlib.md5(cpxseq.encode()).hexdigest()
         print('Directory name is', name)
-        dg = ppdg.eval_pkl('pathogen/hiv/regression-hiv-rfha-veryfast-6224.pkl', '%s/%s' % (ag, ab), (1,2), pdb, name=None, nmodels=1, ncores=1)
-        # dg = ppdg.eval_pkl('pathogen/hiv/regression-hiv-rfha-veryfast-6224.pkl', '%s/%s' % (ag, ab), (1,2), 'pathogen/hiv/tpl_5fyj.pdb', name=None, nmodels=10, ncores=1)
+        #dg = ppdg.eval_pkl('pathogen/hiv/regression-hiv-rfha-veryfast-6224.pkl', '%s/%s' % (ag, ab), (1,2), pdb, name=None, nmodels=1, ncores=1)
+        dg = ppdg.eval_pkl('pathogen/hiv/regression-hiv-rfha-veryfast-6224.pkl', '%s/%s' % (ag, ab), (1,2), 'pathogen/hiv/tpl_5fyj.pdb', name=None, nmodels=10, ncores=1)
         print('Binding affinity is', dg)
         os.system(". ./RMDIR.sh")
         os.mkdir('temp_dir')
@@ -87,7 +89,7 @@ class SinglePoint(ScoringFunction):
     
     Returns the sum of the ddG scores for each mutation from the WT antibody
     """
-    def __init__(self, singlepoint_file):
+    def __init__(self, singlepoint_file, WT):
         # Read in the singlepoint file, and build pivot table
         try:
             df = pd.read_csv(singlepoint_file)
@@ -101,25 +103,23 @@ class SinglePoint(ScoringFunction):
         # Pivot the table (fill = 0 for missing values since the only missing values are WT)
         df = df.pivot_table(index='pos', columns='mut', values='ddg', fill_value=0)
         # df.index += 1
+        self.WT = WT
         self.score_table = df
 
     def __call__(self, ab, wt_ab):
 
         # Loop over antibody, check if AA == WT, if not, add score (ddG) to total
-        score = 0
-        wt_ab = list(wt_ab)
+        score = 0 # Initialize
+        wt_ab = list(wt_ab) 
         ab = list(ab)
-        for pos, wt_aa in enumerate(wt_ab):
+        ab.remove('/') # Delete the "/" from the list so the positions are equivalent
+        wt_ab.remove('/')
+        for pos, wt_aa in enumerate(wt_ab): # Loop through the position and AA
             if wt_aa != ab[pos]:
-                temp_pos = pos
-                if pos > 118:
-                    temp_pos -= 1
                 # print("Scoring...")
-                score += self.score_table.loc[temp_pos, ab[temp_pos]]
-        # TODO: Make the WT score a parameter, but for now hardcoded
-        # score += -10.749000037414195
-        score += -10.695887448087346
-        # score += -8.749000037414195
+                score += self.score_table.loc[pos, ab[pos]] # Correctly compute lookup
+        
+        score += self.WT
         return score
 
 
