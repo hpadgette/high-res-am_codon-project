@@ -91,36 +91,89 @@ class SinglePoint(ScoringFunction):
     """
     def __init__(self, singlepoint_file, WT):
         # Read in the singlepoint file, and build pivot table
-        try:
-            df = pd.read_csv(singlepoint_file)
-        except:
-            raise ValueError("Could not read/locate singlepoint file, check the path!")
-        
-        # Check that the singlepoint file has the correct columns
-        if not set(['pos', 'mut', 'ddg']).issubset(set(df.columns)):
-            raise ValueError("Singlepoint file must have columns 'ab', 'ag', 'score'")
-        
-        # Pivot the table (fill = 0 for missing values since the only missing values are WT)
-        df = df.pivot_table(index='pos', columns='mut', values='ddg', fill_value=0)
-        # df.index += 1
-        self.WT = WT
-        self.score_table = df
+        if isinstance(singlepoint_file, str):
+            try:
+                df = pd.read_csv(singlepoint_file)
+            except:
+                raise ValueError("Could not read/locate singlepoint file, check the path!")
+            
+            # Check that the singlepoint file has the correct columns
+            if not set(['pos', 'mut', 'ddg']).issubset(set(df.columns)):
+                raise ValueError("Singlepoint file must have columns 'ab', 'ag', 'score'")
+            
+            # Pivot the table (fill = 0 for missing values since the only missing values are WT)
+            df = df.pivot_table(index='pos', columns='mut', values='ddg', fill_value=0)
+            # df.index += 1
+            self.WT = WT
+            # TODO: Change this to a dictionary of dataframes
+            self.score_table = df
+        else:
+            score_table = {}
+            WT_dict = {}
+            for ddg_file, WT_dg in zip(singlepoint_file, WT):
+                try:
+                    df = pd.read_csv(ddg_file)
+                except:
+                    raise ValueError("Could not read/locate singlepoint file, check the path!")
+                
+                # Check that the singlepoint file has the correct columns
+                if not set(['pos', 'mut', 'ddg']).issubset(set(df.columns)):
+                    raise ValueError("Singlepoint file must have columns 'pos', 'mut', 'ddg'")
+                
+                # Convert the df to a pivot table for lookup
+                df = df.pivot_table(index='pos', columns='mut', values='ddg', fill_value=0)
 
-    def __call__(self, ab, wt_ab):
+                # Get the key for the dictionaries
+                key = os.path.splitext(os.path.basename(ddg_file))[0]
+                key = int(key.split('_')[-1])
+                # Assign WT and pivot table to dictionary
+                
+                WT_dict[key] = WT_dg
+                score_table[key] = df
+            
+            self.WT = WT_dict
+            self.score_table = score_table
 
-        # Loop over antibody, check if AA == WT, if not, add score (ddG) to total
-        score = 0 # Initialize
-        wt_ab = list(wt_ab) 
-        ab = list(ab)
-        ab.remove('/') # Delete the "/" from the list so the positions are equivalent
-        wt_ab.remove('/')
-        for pos, wt_aa in enumerate(wt_ab): # Loop through the position and AA
-            if wt_aa != ab[pos]:
-                # print("Scoring...")
-                score += self.score_table.loc[pos, ab[pos]] # Correctly compute lookup
-        
-        score += self.WT
-        return score
+
+
+
+
+                    
+
+    def __call__(self, ab, wt_ab, parent_id):
+        # TODO: Change this to take into account the parent_id
+        # TODO: Might need to make wt_ab a dictionary as well, and adjust for this
+        if isinstance(self.score_table, dict):
+            # Loop over antibody, check if AA == WT, if not, add score (ddG) to total
+            score = 0 # Initialize
+            wt_ab = list(wt_ab)
+            ab = list(ab)
+            ab.remove('/') # Delete the "/" from the list so the positions are equivalent
+            wt_ab.remove('/')
+            print("Keys in score call: {}".format(self.score_table.keys()))
+            for pos, wt_aa in enumerate(wt_ab): # Loop through the position and AA
+                if wt_aa != ab[pos]:
+                    print("Scoring...")
+                    print("Mutation: {}{}{}".format(wt_aa, pos, ab[pos]))
+                    score += self.score_table[parent_id].loc[pos, ab[pos]] # Correctly compute lookup
+            
+            score += self.WT[parent_id]
+            return score
+        else:
+            # Loop over antibody, check if AA == WT, if not, add score (ddG) to total
+            score = 0 # Initialize
+            wt_ab = list(wt_ab)
+            ab = list(ab)
+            ab.remove('/') # Delete the "/" from the list so the positions are equivalent
+            wt_ab.remove('/')
+            for pos, wt_aa in enumerate(wt_ab): # Loop through the position and AA
+                if wt_aa != ab[pos]:
+                    print("Scoring...")
+                    print("Mutation: {}{}{}".format(wt_aa, pos, ab[pos]))
+                    score += self.score_table.loc[pos, ab[pos]] # Correctly compute lookup
+            
+            score += self.WT
+            return score
 
 
 class PPDX(ScoringFunction):

@@ -159,20 +159,25 @@ class AffinityMaturation:
                 }
             
         # Build GL antibody
-        for i, Ab in enumerate(self.config['antibody']['antibody_names']):
+        dicAbs = dict()
+        counts = dict()
+        for Ab in self.config['antibody']['antibody_names']:
+            if Ab not in counts:
+                counts[Ab] = 0
+            counts[Ab] += 1
+
             str_seq = ''
             len_of_each_region = dict()
-            for region, seq in list(self.config['antibody']['antibody_seq'].items()):
+            for region, seq in list(self.config['antibody']['antibody_seq'][Ab].items()):
                 len_of_each_region[region] = len(seq)
                 str_seq += seq
 
-            dicAbs = {
-                Ab : {
+            dicAbs[Ab] = {
                     'seq' : str_seq,
                     'ratio' : None,
-                    'lengths' : len_of_each_region
+                    'lengths' : len_of_each_region,
+                    'count' : counts[Ab]
                 }
-            }
-
+        
 
         return dicAbs, dicAgs

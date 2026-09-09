@@ -48,14 +48,16 @@ class GerminalCenter(object):
         self.nb_cycle_max = 99
         self.help_cutoff = self.maturation_params['help_cutoff']
         self.score_config = score_config
-        self.parent_seq = self.dicAbs[Ab[0]]['seq']
+
+        
+        self.parent_seq = self.dicAbs
         
         # Set fixed activation energy
         # self.activation_energy = self.maturation_params['activation_energy']
         
         # Set fixed delta between GL and E_a (hardcoded to be +0.75 kcal/mol for now)
-        self.activation_energy = self.score_config['WT'] + 0.75
-
+            
+        self.activation_energy = np.max(self.score_config['WT']) + 0.75
 
         self.gc_dict = deepcopy(self.__dict__)
 
@@ -66,8 +68,22 @@ class GerminalCenter(object):
         self.ag_start = self.maturation_params['ag_start']
         self.ag_left = self.ag_start
         self.p_scale = self.maturation_params['p_scale']
-        residues = self.dicAbs[Ab[0]]['seq']
-        self.B_cells = BCell(self.gc_dict, residues=residues, nbs=self.seed_nbs)
+        
+        # Make list of founder nucleotide sequences
+        residue_list = []
+
+        # Loop over founders
+        for key in self.parent_seq.keys():
+            
+            residues = self.parent_seq[key]['seq']
+            for i in range(self.parent_seq[key]['count']):
+                residue_list.append(residues)
+        # Convert to array
+        
+        residue_arr = np.vstack(residue_list)
+        
+
+        self.B_cells = BCell(self.gc_dict, residues=residue_arr, nbs=self.seed_nbs)
         self.gc_id = gc_id
         self.flag = self.maturation_params['flag']
 
@@ -91,8 +107,9 @@ class GerminalCenter(object):
                 print("MAKING B CELL LOG")
                 self.bcell_logPath = log_file + '/GC_{}_log.h5'.format(self.gc_id)
                 self.bcell_log = h5py.File(log_file + '/GC_{}_log.h5'.format(self.gc_id), 'w')
-                self.numeric_dataset = self.bcell_log.create_dataset('numeric_dataset', shape=(0, 6), maxshape=(None, 6), dtype='float64')
-                self.numeric_dataset.attrs['description'] = "nbs, E, ag_captured, prob_capture, injection, cycle"
+                # TODO: Change shape of the datasets, and add parent_id parameter
+                self.numeric_dataset = self.bcell_log.create_dataset('numeric_dataset', shape=(0, 7), maxshape=(None, 7), dtype='float64')
+                self.numeric_dataset.attrs['description'] = "founder_id, nbs, E, ag_captured, prob_capture, injection, cycle"
                 self.sequence_dataset = self.bcell_log.create_dataset('sequence_dataset', shape=(0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='ascii'))
             
 
@@ -118,7 +135,7 @@ class GerminalCenter(object):
             if 'numeric_dataset' in self.bcell_log:
                 self.numeric_dataset = self.bcell_log['numeric_dataset']
             else:
-                self.numeric_dataset = self.bcell_log.create_dataset('numeric_dataset', shape=(0, 6), maxshape=(None, 6), dtype='float64')
+                self.numeric_dataset = self.bcell_log.create_dataset('numeric_dataset', shape=(0, 7), maxshape=(None, 7), dtype='float64')
             
             # Get sequence data, if it doesn't exist make a new dataset
             if 'sequence_dataset' in self.bcell_log:
@@ -173,6 +190,8 @@ class GerminalCenter(object):
             we still need some sort of gc_id attribute.
             """
             # if not isinstance(self.B_cells.nbs, int):
+
+            # TODO: Change to include parent_id
             if len(self.B_cells.nbs) > 0:
                 if self.injection_log is not None:
                     if done or exceed_size_flag or ag_left_flag:
@@ -214,13 +233,53 @@ class GerminalCenter(object):
                 print('\n \n \n')
                 break
             elif exceed_size_flag:
+                if self.bcell_log is not None:
+                    print("Logging B Cells")
+                    timer_start = timer()                                                                           
+                    for i in range(len(self.B_cells.nbs)):
+                        floats_to_append = np.array([
+                            self.B_cells.parent_id[i],
+                            self.B_cells.nbs[i], 
+                            self.B_cells.E[i], 
+                            self.B_cells.prob_capture[i], 
+                            self.B_cells.ag_captured[i],
+                            self.n_injections,
+                            self.cycle_number])
+                        sequence_to_append = self.B_cells.residues[i][0]
+                        # print("RESIDUES FOR THE LOG: ", self.B_cells.residues[i][0])
+                        # print("floats: ", floats_to_append)
+                        # print("seq: ", sequence_to_append)
+                        self.append_data(floats_to_append, sequence_to_append)
                 self.bcell_log.close()
-                self.memory_founders = self.pick_memCells()
+                # TODO: Change this back; only temp
+                # self.memory_founders = self.pick_memCells()
                 print('\n \n \n')
                 break
             elif ag_left_flag:
+                if self.bcell_log is not None:
+                    print("Logging B Cells")
+                    timer_start = timer()                                                                           
+                    for i in range(len(self.B_cells.nbs)):
+                        floats_to_append = np.array([
+                            self.B_cells.parent_id[i],
+                            self.B_cells.nbs[i], 
+                            self.B_cells.E[i], 
+                            self.B_cells.prob_capture[i], 
+                            self.B_cells.ag_captured[i],
+                            self.n_injections,
+                            self.cycle_number])
+                        sequence_to_append = self.B_cells.residues[i][0]
+                        # print("RESIDUES FOR THE LOG: ", self.B_cells.residues[i][0])
+                        # print("floats: ", floats_to_append)
+                        # print("seq: ", sequence_to_append)
+                        self.append_data(floats_to_append, sequence_to_append)
+                    self.bcell_log.flush()
+                    timer_end = timer()
+                    
+                    print("Time to log B Cells: {}".format(timer_end - timer_start))
                 self.bcell_log.close()
-                self.memory_founders = self.pick_memCells()
+                # TODO: Change this back; only temp
+                # self.memory_founders = self.pick_memCells()
                 print('\n \n \n')
                 break
             print("Done with GC Cycle {}, on to the next one!".format(self.cycle_number))
@@ -259,11 +318,15 @@ class GerminalCenter(object):
             if self.debug > 2:
                 print("After dark zone, {} B clones, {} total cells".format(len(self.B_cells.nbs),
                                                                             self.B_cells.nbs.sum()))
+
+        # TODO: Change logging (both above and below) to include the parent_id            
+                                                             
         if self.bcell_log is not None:
             print("Logging B Cells")
             timer_start = timer()                                                                           
             for i in range(len(self.B_cells.nbs)):
                 floats_to_append = np.array([
+                    self.B_cells.parent_id[i],
                     self.B_cells.nbs[i], 
                     self.B_cells.E[i], 
                     self.B_cells.prob_capture[i], 
@@ -312,6 +375,7 @@ class GerminalCenter(object):
             n_dies = np.random.binomial(self.B_cells.nbs[i], langmuir_conjs)
             self.B_cells.nbs[i] -= n_dies
         self.B_cells.prune()
+        # self.test_state()
     
     def run_binding_selection(self):
         """ Select B cells for binding to antigen. """
@@ -342,6 +406,7 @@ class GerminalCenter(object):
                 self.B_cells.last_bound[i] -= n_die
                 
         self.B_cells.prune()
+        # self.test_state()
         self.B_cells.prob_capture = self.B_cells.prob_capture[self.B_cells.alive]
         self.assign_ag() # Explicit antigen capture
         
@@ -351,8 +416,7 @@ class GerminalCenter(object):
         """ Select B cells to receive T cell help. """
         binding_energies = self.B_cells.E
         
-        # for i in range(len(self.B_cells.nbs)):
-        #     binding_energies.append(self.B_cells.energy(self.Ag[0], self.cycle_number, self.B_cells.residues[i]))
+        
         binding_energies = np.array(binding_energies)
         sort = np.argsort(binding_energies)[::-1]
 
@@ -375,6 +439,7 @@ class GerminalCenter(object):
             
             # Pruning dead B Cells
             self.B_cells.prune()
+            # self.test_state()
             # Recomputing the cut_idx
             nb_tot = self.B_cells.nbs.sum()
             cut_idx = int(self.help_cutoff * nb_tot) - 1
@@ -404,8 +469,9 @@ class GerminalCenter(object):
         
         n_exits = np.random.binomial(self.B_cells.nbs, self.p_exit)
         self.B_cells.nbs -= n_exits
-        new_memory_cells = BCell(self.gc_dict, residues=self.B_cells.residues, nbs=n_exits)
-        new_memory_cells.E = self.B_cells.E
+        E_for_memory_cells = self.B_cells.E
+        new_memory_cells = BCell(self.gc_dict, residues=self.B_cells.residues, nbs=n_exits, E=E_for_memory_cells)
+        # new_memory_cells.E = self.B_cells.E
         self.B_cells.prune()
 
         if self.revert:  # Old behavior: Don't add memory cells for the last cycle
@@ -418,8 +484,8 @@ class GerminalCenter(object):
             # TODO: (JGF) I think this should be replaced with appending the memory cells each time this
             # function gets called. Otherwise, the memory cells only can be sampled from the last iteration.
             # I would think that it's more accurate to have most of the memory cells pulled from the point in AM
-            # where they look similar to the germline. Plus, then we don't have to tune how many GL vs mem_cells.
-            # Need to add an append_mem_cells() function I think, or add it to this.
+            # where they look similar to the germline/have high populations. Plus, then we don't have to tune 
+            # how many GL vs mem_cells. Need to add an append_mem_cells() function I think, or add it to this.
             if new_memory_cells.nbs.sum() > 0:
                 self.memory_cells.append_mem_cells(new_memory_cells)  # Always add memory cells
 
@@ -468,9 +534,10 @@ class GerminalCenter(object):
         else:
             # nbs = self.seed_nbs  # Instantly proliferate to 128
             nbs = 10 * np.ones(self.num_GC_founders, dtype=np.int) # JGF: Testing multiple memory cells
-        
-        new_founders = BCell(self.gc_dict, residues=residues, nbs=nbs)
-        new_founders.E = self.memory_cells.E[id_new_founders]
+
+        E_for_founders = self.memory_cells.E[id_new_founders]
+        new_founders = BCell(self.gc_dict, residues=residues, nbs=nbs, E=E_for_founders)
+        # new_founders.E = self.memory_cells.E[id_new_founders]
         return new_founders
 
     def test_state(self):
@@ -608,7 +675,7 @@ class GerminalCenter(object):
         # Append numeric data
         current_numeric_length = self.numeric_dataset.shape[0]
         new_numeric_length = current_numeric_length + 1
-        self.numeric_dataset.resize((new_numeric_length, 6))
+        self.numeric_dataset.resize((new_numeric_length, 7))
         self.numeric_dataset[current_numeric_length] = numeric_data
 
         # Append string data
@@ -642,8 +709,9 @@ class BCell():
         #TODO: I think this is bugged, doesn't seem to be loading in the gc_dict as expected
         for k, v in gc_dict.items():
             self.__dict__[k] = v
-        self.residues = residues
         
+        self.residues = residues
+        # print(self.residues)
         self.nbs = nbs
         if 'maturation_params' in gc_dict:
             self.p_mut = self.maturation_params['p_mut']
@@ -652,6 +720,53 @@ class BCell():
             self.p_CDR_lethal = self.maturation_params['p_CDR_lethal']
             self.p_CDR = self.maturation_params['p_CDR']
             self.p_metric = self.maturation_params['prob_metric']
+        
+        sample_parent_ab = list(self.parent_seq.keys())[0]
+        # print(self.parent_seq)
+        self.lenFRWH1 = self.dicAbs[sample_parent_ab]['lengths']['FRWH1_nt']
+        self.lenCDRH1 = self.dicAbs[sample_parent_ab]['lengths']['CDRH1_nt']
+        self.lenFRWH2 = self.dicAbs[sample_parent_ab]['lengths']['FRWH2_nt']
+        self.lenCDRH2 = self.dicAbs[sample_parent_ab]['lengths']['CDRH2_nt']
+        self.lenFRWH3 = self.dicAbs[sample_parent_ab]['lengths']['FRWH3_nt']
+        self.lenCDRH3 = self.dicAbs[sample_parent_ab]['lengths']['CDRH3_nt']
+        self.lenFRWL1 = self.dicAbs[sample_parent_ab]['lengths']['FRWL1_nt']
+        self.lenCDRL1 = self.dicAbs[sample_parent_ab]['lengths']['CDRL1_nt']
+        self.lenFRWL2 = self.dicAbs[sample_parent_ab]['lengths']['FRWL2_nt']
+        self.lenCDRL2 = self.dicAbs[sample_parent_ab]['lengths']['CDRL2_nt']
+        self.lenFRWL3 = self.dicAbs[sample_parent_ab]['lengths']['FRWL3_nt']
+        self.lenCDRL3 = self.dicAbs[sample_parent_ab]['lengths']['CDRL3_nt']
+
+        self.len_heavy_nt = self.lenFRWH1 + self.lenCDRH1 + self.lenFRWH2 + self.lenCDRH2 + self.lenFRWH3 + self.lenCDRH3
+        self.len_light_nt = self.lenFRWL1 + self.lenCDRL1 + self.lenFRWL2 + self.lenCDRL2 + self.lenFRWL3 + self.lenCDRL3
+        # TODO: Hardcoded this for now for the current experiments, but this will need to change to account for different founders
+        
+        self.len_heavy_aa = len(str(Seq(self.parent_seq[sample_parent_ab]['seq'][0:self.len_heavy_nt]).translate()))
+        self.len_light_aa = len(str(Seq(self.parent_seq[sample_parent_ab]['seq'][self.len_heavy_nt:]).translate()))
+        
+        # TODO: Might be okay to just remove this if the dependent functions use the dict, if not change this
+        #       to incorporate the dictionary
+        # TODO: Loop over this to convert the parent_seq[ab]['seq'] entries to protein sequence
+        parent_ids = []
+        self.parent_aa_seq = dict()
+        for i, key in enumerate(self.parent_seq.keys()):
+            # Convert 'parent_seq' sequences to amino acids
+            
+            # print("Current key: {}".format(key))
+            # print("Current seq: {}".format(self.parent_seq[key]['seq']))
+            self.parent_aa_seq[key] = dict()
+            self.parent_aa_seq[key]['seq'] = deepcopy(str(Seq(self.parent_seq[key]['seq']).translate()))
+            # print("parent_aa_seq in loop: ", self.parent_aa_seq[key]['seq'])
+            self.parent_aa_seq[key]['seq'] = self.parent_aa_seq[key]['seq'][0:self.len_heavy_aa] + '/' + self.parent_aa_seq[key]['seq'][self.len_heavy_aa:]
+            # print("second parent_aa_seq in loop: ", self.parent_aa_seq[key]['seq'])
+            self.parent_aa_seq[int(key.split('_')[-1])] = self.parent_aa_seq.pop(key)
+            parent_id = int(key.split('_')[-1])
+            for j in range(self.parent_seq[key]['count']):
+                parent_ids.append(parent_id)
+        self.parent_id = np.array(parent_ids)
+        print("parent_id: ", self.parent_id)
+        # print("parent_aa_seq: ", self.parent_aa_seq)
+
+        # TODO: Add a parent_id parameter around here
 
         # Conditional p values used in vectorized_multinomial() are repeated often, so compute them once here.
         p = np.array([self.p_CDR_lethal, self.p_CDR_silent, self.p_CDR_affect])
@@ -672,16 +787,15 @@ class BCell():
         else:
             self.cycle_number = 2
 
+
         if 'E' in kwargs:
             self.E = kwargs['E']
         else:
-            if isinstance(nbs, int) and isinstance(residues, str):
-                self.E = self.energy(self.dicAgs[self.Ags[0]]['seq'][0], self.cycle_number, self.residues)
-            # elif residues is not None:
-            #     E = np.zeros(shape=(len(residues),))
-            #     for i, res in enumerate(residues):
-            #         E[i] = self.energy(self.dicAgs[self.Ags[0]]['seq'][0], self.cycle_number, res)
-            #     self.E = E
+            if isinstance(nbs, int) and isinstance(self.residues, str):
+                #TODO: Adjust this for the parent_id
+                
+                self.E = self.energy(self.dicAgs[self.Ags[0]]['seq'][0], self.cycle_number, self.residues, self.parent_id[0])
+            
             else:
                 self.E = np.inf
 
@@ -689,11 +803,11 @@ class BCell():
             self.generation = kwargs['generation']
         else:
             self.generation = 0
-        
-        self.E = np.array(self.E).reshape((1,))
+            
         if isinstance(self.nbs, int):
             self.ag_captured = 0
             self.ag_captured = np.array(self.ag_captured).reshape((1,))
+            self.E = np.array(self.E).reshape((1,))
             self.div = np.array([1]).reshape((1,))
         else:
             print("NBS SHAPE FOR NEW B CELLS: ", self.nbs.shape)
@@ -715,35 +829,51 @@ class BCell():
             self.div = np.repeat(1, self.maturation_params['num_GC_founders'])
             # print("DIV INIT: ", self.div)
             # print("LENGTH DIV: ", len(self.div))
+            self.parent_id = np.repeat(self.parent_id, self.maturation_params['num_GC_founders'])
             for i in range(0, self.maturation_params['num_GC_founders']-1):
                 self.residues = np.vstack([self.residues, residues])
-            # print("LENGTH RESIDUES: ", len(self.residues))
+        
+        if gc_dict['maturation_params']['multiple_founders'] and isinstance(self.nbs, int):
+            nbs = int(np.round(nbs/self.maturation_params['num_GC_founders']))
+            self.nbs = np.repeat(nbs, self.maturation_params['num_GC_founders'])
+            print("NBS INIT: ", self.nbs)
+            print("LENGTH NBS: ", len(self.nbs))
+
+            #TODO: Change this to have E for all the WTs; should probably just adjust the initialization
+            starting_E = []
+            
+            if self.residues is not None:
+                # print(self.residues)
+                # print(self.residues.shape)
+                print("LENGTH RESIDUES: ", len(self.residues))
+                for res, parent_id in zip(self.residues, self.parent_id):
+                    # print(res)
+                    E = self.energy(self.dicAgs[self.Ags[0]]['seq'][0], self.cycle_number, res[0], parent_id)
+                    starting_E.append(E)
+                self.E = np.array(starting_E)
+            else:
+                self.E = np.repeat(self.E[0], self.maturation_params['num_GC_founders'])
+            print("E INIT: ", self.E)
+            print("LENGTH E: ", len(self.E))
+            self.ag_captured = np.repeat(0, self.maturation_params['num_GC_founders'])
+            print("AG INIT: ", self.ag_captured)
+            print("LENGTH AG: ", len(self.ag_captured))
+            self.div = np.repeat(1, self.maturation_params['num_GC_founders'])
+            print("DIV INIT: ", self.div)
+            print("LENGTH DIV: ", len(self.div))
+
+            
+        
         # self.prob_capture = np.array(0).reshape((1,))
-        self.lenFRWH1 = self.dicAbs[self.Ab[0]]['lengths']['FRWH1_nt']
-        self.lenCDRH1 = self.dicAbs[self.Ab[0]]['lengths']['CDRH1_nt']
-        self.lenFRWH2 = self.dicAbs[self.Ab[0]]['lengths']['FRWH2_nt']
-        self.lenCDRH2 = self.dicAbs[self.Ab[0]]['lengths']['CDRH2_nt']
-        self.lenFRWH3 = self.dicAbs[self.Ab[0]]['lengths']['FRWH3_nt']
-        self.lenCDRH3 = self.dicAbs[self.Ab[0]]['lengths']['CDRH3_nt']
-        self.lenFRWL1 = self.dicAbs[self.Ab[0]]['lengths']['FRWL1_nt']
-        self.lenCDRL1 = self.dicAbs[self.Ab[0]]['lengths']['CDRL1_nt']
-        self.lenFRWL2 = self.dicAbs[self.Ab[0]]['lengths']['FRWL2_nt']
-        self.lenCDRL2 = self.dicAbs[self.Ab[0]]['lengths']['CDRL2_nt']
-        self.lenFRWL3 = self.dicAbs[self.Ab[0]]['lengths']['FRWL3_nt']
-        self.lenCDRL3 = self.dicAbs[self.Ab[0]]['lengths']['CDRL3_nt']
+        
         # if self.residues is not None and isinstance(self.residues, str):
         # print("Parent Sequence: ", self.parent_seq)
         # self.parent_seq = deepcopy(str(Seq(self.parent_seq).translate()))
         # self.parent_seq = self.parent_seq[0:118] + '/' + self.parent_seq[118:]
-        self.len_heavy_nt = self.lenFRWH1 + self.lenCDRH1 + self.lenFRWH2 + self.lenCDRH2 + self.lenFRWH3 + self.lenCDRH3
-        self.len_light_nt = self.lenFRWL1 + self.lenCDRL1 + self.lenFRWL2 + self.lenCDRL2 + self.lenFRWL3 + self.lenCDRL3
-        self.len_heavy_aa = len(str(Seq(self.parent_seq[0:self.len_heavy_nt]).translate()))
-        self.len_light_aa = len(str(Seq(self.parent_seq[self.len_heavy_nt+1:]).translate()))
-        self.parent_seq = deepcopy(str(Seq(self.parent_seq).translate()))
-        self.parent_seq = self.parent_seq[0:len_heavy_aa] + '/' + self.parent_seq[len_heavy_aa+1:]
+        
 
 
-    def clone(self, residues, nbs):
+    def clone(self, residues, nbs, parent_ids):
         print("===Cloning B Cells===")
         """ Add clones with given residues and nbs """
         
@@ -753,15 +883,28 @@ class BCell():
             E = np.repeat(self.E[0], residues.shape[0])
             ag_captured = np.repeat(0, residues.shape[0])
             div = np.repeat(1, residues.shape[0])
+            #TODO: Add parent tracking to B cells
+            # parent_id = np.repeat(parent_id, residues.shape[0])
         # print("nbs in Clone(): ", len(self.nbs))
         # print("nbs to add in Clone(): ", len(nbs))
         # print("Num AG Captured in Clone(): ", len(self.ag_captured))
         # print("Num Ag Captured to add in Clone(): ", len(ag_captured))
+
+        #TODO: Add parent tracking to B cells
+        # Make sure parent_id is the same length as residues
+        
+
+        self.parent_id = np.concatenate([self.parent_id, parent_ids])
         self.residues = np.vstack([self.residues, residues])
         self.nbs = np.concatenate([self.nbs, nbs])
         self.E = np.concatenate([self.E, E])
         self.ag_captured = np.concatenate([self.ag_captured, ag_captured])
         self.div = np.concatenate([self.div, div])
+
+        print("parent_id length: ", len(self.parent_id))
+        print("self.residues length: ", self.residues.shape[0])
+        if len(self.parent_id) != self.residues.shape[0]:
+            raise ValueError("parent_id length must match residues")
 
 
     # Might be unnecessary
@@ -776,8 +919,8 @@ class BCell():
         self.history['cycle_number'].append(self.cycle_number)
 
 
-    def energy(self, Ag, cycle_number, residues):
-        
+    def energy(self, Ag, cycle_number, residues, parent_id):
+
         """ Return binding energy with input antigen. """
         
         # Choosing epitope to bind based on list of probabilities in p_metric
@@ -796,10 +939,14 @@ class BCell():
         Ab_aa = str(Ab_nt.translate())
 
         # Format for chains in Modeller
-        Ab = Ab_aa[0:118] + '/' + Ab_aa[118:]
+        Ab = Ab_aa[0:self.len_heavy_aa] + '/' + Ab_aa[self.len_heavy_aa:]
+        print("Ab in energy: {}".format(Ab))
         if "*" not in Ab_aa:
             if self.score_config['scoring_function'] == 'singlepoint':
-                dg = self.scoring_function(ab=Ab, wt_ab=self.parent_seq)
+                # TODO: variable wild type antibody
+                
+                # TODO: Maybe add another parameter to the scoring_function for lookup table
+                dg = self.scoring_function(ab=Ab, wt_ab=self.parent_aa_seq[parent_id]['seq'], parent_id=parent_id)
             else:
                 print("Ag/Ab seq to scoring funcion: {}/{}".format(Ag, Ab))
                 dg = self.scoring_function(self.scoring_function, ag=Ag, ab=Ab, binding_site=binding_site)
@@ -859,6 +1006,7 @@ class BCell():
         cln = 0
         for clone_residues in residues:
             clone_residues = clone_residues[0]
+            # print(clone_residues)
             for i in range(len(str(clone_residues))):  # Iterating over the entire sequence
                 if i < (len(str(clone_residues)) - 4):
                     # If i is less than four spaces from the end of the sequence
@@ -943,14 +1091,15 @@ class BCell():
             start2 = timer()
 
             
-            if len(Ab_aa) < 217:
+            if len(Ab_aa) < self.len_heavy_aa + self.len_light_aa:
                 print("This mutation resulted in a dead B Cell due to a start/stop codon change at position: ",
                  index)
                 self.residues = None
                 self.E = np.inf
             else:
                 self.residues[-n_clones + cln] = deepcopy(temp_res1)
-                self.E[-n_clones+cln] = self.energy(Ag[0], self.cycle_number, self.residues[-n_clones+cln][0])
+                parent_id = self.parent_id[-n_clones + cln]
+                self.E[-n_clones+cln] = self.energy(Ag[0], self.cycle_number, self.residues[-n_clones+cln][0], parent_id)
             
             end2 = timer()
             mutate_time2 = end2 - start2
@@ -992,15 +1141,24 @@ class BCell():
         
         if len(self.nbs) == 1:
             new_residues = np.tile(self.residues, (n_total, 1))
+            new_ids = np.repeat(self.parent_id, n_total)
         else:
             new_residues = np.tile('B' * len(self.residues[0][0]), (n_total, 1))
-            start = 0            
-            for res, stop in zip(self.residues, n_affect.cumsum()):
+            start = 0
+            print("n_affect: ", n_affect)            
+            print("n_affect.cumsum(): ", n_affect.cumsum())
+            print("residues shape: ", self.residues[:].shape[0])
+            print("parent_id: ", self.parent_id)
+            print("length parent_id: ", len(self.parent_id))
+            new_ids = np.repeat(0, n_total)
+            for res, ids, stop in zip(self.residues, self.parent_id,  n_affect.cumsum()):
                 new_residues[start:stop,:] = res
+                new_ids[start:stop] = ids
                 start = stop
-
+        print("combined length: ", len(new_residues) + len(self.residues))
+        print("new_ids: ", new_ids)
         # Add clones to be mutated in mutate_CDR()
-        self.clone(new_residues, nbs=int(1))
+        self.clone(new_residues, nbs=int(1), parent_ids=new_ids)
         
         # Mutate clones
         self.mutate_CDR(Ag, new_residues.shape[0])
@@ -1056,6 +1214,7 @@ class BCell():
         self.nbs = self.nbs[alive]
         self.residues = self.residues[alive]
         self.E = self.E[alive]
+        self.parent_id = self.parent_id[alive]
         self.alive = alive
     
     # Adapted from: https://stackoverflow.com/questions/55818845/fast-vectorized-multinomial-in-python
