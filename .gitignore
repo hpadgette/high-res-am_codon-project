@@ -10,6 +10,7 @@ high_res_am/*.sh
 # logs and out files from sbatch
 high_res_am/*.out
 high_res_am/singlepoint/*
+!high_res_am/singlepoint/.placeholder
 high_res_am/log/*
 high_res_am/analysis/
 high_res_am/config/*
