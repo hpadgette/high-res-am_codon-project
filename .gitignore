@@ -13,7 +13,7 @@ high_res_am/singlepoint/*
 !high_res_am/singlepoint/.placeholder
 high_res_am/log/*
 high_res_am/analysis/
-high_res_am/config/*
+high_res_am/config/*/
 high_res_am/*.swp
 # C extensions
 *.so
