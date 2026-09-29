@@ -34,6 +34,90 @@ injection, rather than selecting against a fixed concentration.
 - Binding selection uses the *current* pool (`ag_left / ag_start`) as the effective
   concentration, and an injection ends once the pool falls below 20% of its starting size.
 
+## Where things live
+
+| To change... | Edit |
+|---|---|
+| Antigen, founders, any model parameter | your experiment JSON in `config/` |
+| Parameter defaults | `config/generic_config.json`, `config/generic_hiv_no_comments.json` |
+| The GC reaction (selection, mutation, recycling) | `lymph_node.py` |
+| How binding energy is computed | `score.py` |
+| Experiment setup / how founders are assembled | `affinity.py` |
+| CLI, seeding, log directory layout | `run.py` |
+
+Each module has a docstring at the top explaining its role and what a new user would change
+there. Run from the `high_res_am/` package directory — `Mutability.csv` and
+`Substitution.csv` are opened by relative path.
+
+`json.load` cannot parse `//` comments, so **any config that is actually loaded must be plain
+JSON**. `generic_hiv.json` is the commented reference; `generic_hiv_no_comments.json` is the
+one the loader reads. Edit one, edit both.
+
+## Configuration reference
+
+### `experiment`
+
+| Key | Meaning |
+|---|---|
+| `logging` | Write log files at all |
+| `log_level` | Which logs to write: `"injection"`, `"cycles"`, `"B Cell"` |
+| `exp_name` | Name of the run's log directory (a timestamp is appended) |
+| `num_GCs` | Number of independent germinal centres |
+| `num_injections` | Prime/boost count — **see warning below** |
+| `debug` | `0` for normal runs; higher values skip log setup and print more |
+| `seed` | RNG seed. `null` draws a fresh one and records it |
+| `score_config.scoring_function` | `"singlepoint"`, `"ppdg"`, or `"ppdx"` (unimplemented) |
+| `score_config.singlepoint_file` | Path to a ΔΔG CSV, or a list of them for multiple founders |
+| `score_config.WT` | Founder reference ΔG, or a list paired positionally with the files |
+
+### `antigen` / `antibody`
+
+| Key | Meaning |
+|---|---|
+| `antigen_names`, `antigen_seqs` | Antigen label and amino acid sequence |
+| `antibody_names` | Founder labels. Must end in `_<integer>` — that integer is the `parent_id` used for per-founder ΔΔG lookup |
+| `antibody_seq` | Per-founder dict of the 12 nucleotide regions (`FRWH1_nt` … `CDRL3_nt`) |
+
+### `maturation_parameters`
+
+| Key | Typical | Meaning |
+|---|---|---|
+| `p_mut` | 0.14 | Probability a cell mutates, per dark zone round |
+| `p_CDR` | 0.85 | Fraction of mutations landing in a CDR; the rest are framework hits and are treated as deaths |
+| `p_CDR_lethal` | 0.30 | Of CDR hits, the fraction that kill the cell |
+| `p_CDR_silent` | 0.00 | Of CDR hits, the fraction with no effect |
+| `p_recycle` | 0.70 | Probability a survivor re-enters the GC rather than exiting as a memory cell |
+| `p_scale` | 0.25 | Scales how much antigen a good binder captures per cycle |
+| `energy_scale` | 0.9 | Selection sharpness — how strongly ΔG differences drive survival |
+| `help_cutoff` | 0.70 | Fraction of cells surviving T cell help. Higher = weaker selection |
+| `pop_size` | 100–200 | Starting B cell population per GC |
+| `ag_start` | 50k–100k | Size of the antigen pool at the start of an injection |
+| `num_GC_founders` | 10 | Founders seeding each GC |
+| `multiple_founders` | bool | Seed the GC with several *distinct* founder sequences, each scored on its own ΔΔG table |
+| `split_founders` | bool | Split the starting population across `num_GC_founders` copies of a *single* sequence |
+| `prob_metric` | 0 or list | Epitope weights for multi-epitope binding. Only consulted by `ppdg`; inert under `singlepoint` |
+| `revert` | false | Legacy memory-cell sampling. Keep `false` |
+
+`p_CDR_affect` (= 1 − `p_CDR_silent` − `p_CDR_lethal`) and `p_exit` (= 1 − `p_recycle`) are
+derived in `config/__init__.py`. Don't set them by hand.
+
+### Keys that look live but are not
+
+These appear in the example configs and have **no effect** on a run:
+
+| Key | Why |
+|---|---|
+| `activation_energy` | Overridden in `GerminalCenter.__init__` as (weakest founder ΔG) + 0.75 kcal/mol |
+| `concentration` | Only read by the inactive `run_binding_selection_old()`. The live path uses `ag_left / ag_start` |
+| `flag` | Sets a local variable in `pick_memCells()` that is never read |
+| `cocktail` | Never read from the config |
+| `num_antigens`, `delayed_release`, `time_steps`, `epsilon`, `nb_trial` | Not referenced in any active module |
+
+> **`num_injections > 1` does not currently work.** Both calls to `pick_memCells()` in
+> `GerminalCenter.injection()` are commented out (`"TODO: Change this back; only temp"`), so
+> `memory_founders` is never populated and injection 2 starts with `residues=None`. Restore
+> those calls before attempting prime-boost runs. Single-injection runs are unaffected.
+
 ---
 
 # Codon project (this branch)

@@ -1,3 +1,26 @@
+"""
+Entry point for an affinity maturation run.
+
+    python -u -m run --config=config/my_experiment.json [--seed N] [--exp_name NAME]
+
+Run this from the `high_res_am/` package directory. Mutability.csv and Substitution.csv are
+opened by relative path during somatic hypermutation, so the working directory matters.
+
+What this file does: load and merge the config, fix the RNG seed, build the log directory
+tree, then hand off to AffinityMaturation.run() in affinity.py.
+
+Where to make changes:
+  - The system being studied (antigen, founder antibodies, ddG tables, model parameters)
+    -> your experiment JSON in config/. No Python edits needed for any of this.
+  - Which parameters exist and their defaults -> config/generic_config.json and
+    config/generic_hiv_no_comments.json.
+  - The GC reaction itself (selection, mutation, recycling) -> lymph_node.py.
+  - How binding energy is computed -> score.py.
+
+See the README for a reference table of every config parameter, including several that
+appear in the example configs but currently have no effect.
+"""
+
 import os
 import random
 import click

@@ -1,3 +1,43 @@
+"""
+The germinal centre reaction: GerminalCenter and BCell.
+
+This is the core of the model. Everything that happens to a B cell population during an
+injection happens in this file.
+
+GerminalCenter.injection() repeats run_GC_cycle() until the GC ends. One cycle is:
+
+    run_dark_zone()          proliferate (rate set by antigen captured) and mutate
+    run_binding_selection()  survive in proportion to affinity, then capture antigen
+    run_help_selection()     keep the top `help_cutoff` fraction by affinity
+    run_recycle()            each survivor re-enters the GC or exits as a memory cell
+
+test_state() ends the injection when the GC goes extinct, exceeds GC_size_max, or depletes
+its antigen pool below 20% of ag_start.
+
+BCell is NOT a single cell. It is the whole population, held as parallel numpy arrays
+indexed by clone:
+
+    residues     nucleotide sequence of each clone
+    nbs          number of cells in each clone
+    E            binding energy (dG) of each clone; lower is tighter binding
+    parent_id    which founder each clone descends from
+    ag_captured  antigen molecules captured, per cell
+    div          how many times each clone divides in the dark zone
+
+prune() drops clones with nbs <= 0 and must keep every one of those arrays in step. If you
+add a per-clone attribute, add it to prune(), clone() and append_mem_cells() as well.
+
+Sequence conventions: `residues` holds nucleotides. Scoring translates to amino acids and
+inserts a '/' between the heavy and light chains before lookup. Only CDR positions ever
+mutate - framework nucleotides are never changed.
+
+Where to make changes:
+  - Antigen, founders, and model parameters -> your experiment JSON, not here.
+  - Selection strength, division rate, antigen capture rules -> the run_* methods below.
+  - Mutation targeting (S5F 5-mer model) -> BCell.mutate_CDR().
+  - Binding energy -> score.py.
+"""
+
 import compute_descriptors_kayla
 import csv
 import sys
@@ -58,6 +98,9 @@ class GerminalCenter(object):
         
         # Set fixed delta between GL and E_a (hardcoded to be +0.75 kcal/mol for now)
             
+        # NOTE: the "activation_energy" key in the config is IGNORED (see the commented-out
+        # line above). E_a is derived here as (weakest founder dG) + 0.75 kcal/mol, and is the
+        # reference point for binding selection. To change it, edit this line, not the config.
         self.activation_energy = np.max(self.score_config['WT']) + 0.75
 
         self.gc_dict = deepcopy(self.__dict__)
@@ -86,6 +129,8 @@ class GerminalCenter(object):
 
         self.B_cells = BCell(self.gc_dict, residues=residue_arr, nbs=self.seed_nbs)
         self.gc_id = gc_id
+        # NOTE: "flag" currently has no effect. Its only consumer is pick_memCells(), where it
+        # sets a local variable that is never read again.
         self.flag = self.maturation_params['flag']
 
         # Log paths should always be fed as a list regardless of the number of log levels
@@ -126,6 +171,9 @@ class GerminalCenter(object):
 
         # Set the antigens and concentrations
         self.Ag = self.dicAgs[self.Ags[0]]['seq']
+        # NOTE: self.conc (the config's "concentration") is only read by the inactive
+        # run_binding_selection_old(). The live run_binding_selection() derives the effective
+        # concentration from the depleting pool instead, as ag_left / ag_start.
         self.conc = self.dicAgs[self.Ags[0]]['conc']
 
         # Second injection onward, use memory founders
@@ -379,7 +427,21 @@ class GerminalCenter(object):
         # self.test_state()
     
     def run_binding_selection(self):
-        """ Select B cells for binding to antigen. """
+        """
+        LIGHT ZONE, part 1: die in proportion to affinity, then compete for antigen.
+
+        Each clone's chance of dying is the Langmuir term 1 / (1 + c * exp(-s * (E - E_a))),
+        where c = ag_left/ag_start is the current antigen concentration, s is `energy_scale`,
+        and E_a is the activation energy set in __init__. That fraction is killed binomially.
+
+        Survivors get a capture probability p_capture, which is the Langmuir binding
+        probability minus a background term and scaled by `p_scale`; clones only marginally
+        better than background capture nothing. The antigen handout itself is assign_ag().
+
+        Tuning: `energy_scale` sharpens (higher) or softens (lower) how strongly affinity
+        differences translate into survival; `p_scale` sets how much antigen a good binder
+        can take per cycle.
+        """
         print("=== Binding Selection ===")
         new_cells=[]
         self.B_cells.prob_capture = np.zeros(shape=self.B_cells.nbs.shape)
@@ -413,6 +475,10 @@ class GerminalCenter(object):
         
     
     def run_help_selection(self):
+        # LIGHT ZONE, part 2: rank clones by affinity and keep the best `help_cutoff` fraction
+        # of CELLS (not of clones). Clones sitting exactly on the threshold have a
+        # proportional share killed so the cut lands near the intended fraction. Raising
+        # help_cutoff keeps more cells alive, i.e. weaker selection.
         print("=== Help Selection ===")
         """ Select B cells to receive T cell help. """
         binding_energies = self.B_cells.E
@@ -465,6 +531,10 @@ class GerminalCenter(object):
             self.B_cells.prune()
 
     def run_recycle(self):
+        # Each surviving cell leaves the GC with probability p_exit (= 1 - p_recycle) and
+        # becomes a memory cell; the rest re-enter the dark zone. Memory cells accumulate over
+        # the whole injection and are the pool that pick_memCells() draws the next
+        # injection's founders from.
         print("=== Recycling ===")
         """ Randomly select B cells to be recycled back into the GC or to become memory cells. """
         
@@ -491,6 +561,15 @@ class GerminalCenter(object):
                 self.memory_cells.append_mem_cells(new_memory_cells)  # Always add memory cells
 
     def pick_memCells(self):
+        # Draw `num_GC_founders` memory cells to seed the next injection's GC. With
+        # revert = false (the recommended setting) clones are sampled WITH replacement and
+        # weighted by population size, so abundant clones are likelier to found the next GC.
+        #
+        # WARNING: this method is currently unreachable. Both call sites in injection() are
+        # commented out ("TODO: Change this back; only temp"), so self.memory_founders is
+        # never updated from the placeholder BCell built in __init__ (residues=None). Any run
+        # with num_injections > 1 therefore enters injection 2 with no founder sequences.
+        # Restore those calls before attempting prime-boost runs.
         print("=== Picking Memory Cells ===")
         # For simplicity, memory cells are chosen with replacement.
         # To do it without replacement, first choose from self.memory_cells.nbs.sum(),
@@ -577,6 +656,12 @@ class GerminalCenter(object):
         return done, exceed_size_flag, ag_left_flag
     
     def assign_ag(self):
+        # Hand out antigen from the shared pool. Clones are served in DESCENDING order of
+        # p_capture, so the best binders take antigen first and later clones may find the pool
+        # already drawn down - this is what makes antigen a contested, limiting resource.
+        # Each cell is capped at 200 molecules (100 BCRs x 2), and `chances` is the number of
+        # capture attempts per cell per cycle. Whatever is taken here sets the division rate
+        # in the next dark zone via calc_expansion_rate().
         print("===Assigning Ag===")
         """Assign Ag to B cell clones based on Langmuir probability
         Each B cell is assumed to have 100 BCRs which can each extract 
@@ -640,6 +725,10 @@ class GerminalCenter(object):
             print("\n")
     
     def calc_expansion_rate(self):
+        # Set BCell.div: how many times each clone divides in the next dark zone, as a
+        # saturating function of the antigen it captured. Clones that captured nothing divide
+        # once; the ceiling is div_max = 6. Edit div_max / n_max below to change how strongly
+        # antigen capture is rewarded.
         print("===Calculating Expansion Rate===")
         """
         JGF (12/8/23):
@@ -922,7 +1011,18 @@ class BCell():
 
     def energy(self, Ag, cycle_number, residues, parent_id):
 
-        """ Return binding energy with input antigen. """
+        """
+        Return the binding energy (dG) of one clone against the antigen. Lower is tighter.
+
+        Translates the clone's nucleotides to amino acids and inserts a '/' between the heavy
+        and light chains - the chain separator both Modeller and the singlepoint lookup
+        expect. A sequence containing a stop codon ('*') is given dG = 100, i.e. effectively
+        non-binding; that is how lethal mutations are expressed energetically rather than by
+        removing the cell here.
+
+        `parent_id` selects which founder's ddG table and WT reference to score against, so
+        each founder lineage is scored on its own landscape.
+        """
         
         # Choosing epitope to bind based on list of probabilities in p_metric
         # This should return the index of the choice e.g. for p_metric = [0.9, 0.1] there is a 90% chance
@@ -997,6 +1097,23 @@ class BCell():
 
         Substitution model: choose nt to mutate to based on probability of middle nt in 5mer
                             mutating to any other nt
+
+        This is the S5F model, and it is where the nucleotide sequence (rather than the
+        protein sequence) determines what happens. For each new clone:
+
+          1. Collect every 5-nucleotide window whose CENTRE position falls inside a CDR.
+             Framework positions are never mutated, so framework nucleotides only matter
+             within 2 nt of a CDR boundary, where they still shape a CDR window's context.
+          2. Weight those windows by Mutability.csv and draw one.
+          3. Draw the replacement base from that window's row in Substitution.csv.
+          4. Re-translate and rescore the clone (via energy()).
+
+        Edge case: the scan stops at i < len(seq) - 4, so the last two nucleotides of the
+        full sequence - the tail of CDRL3 - can never be selected.
+
+        Performance: both CSVs are re-opened and scanned linearly for every window of every
+        clone, which dominates runtime on large sweeps. Loading them once into dicts keyed by
+        5-mer would be a substantial speedup.
         """
         start1 = timer()
         global picked_list2
@@ -1113,6 +1230,17 @@ class BCell():
 
 
     def shm(self, Ag, cycle_number):
+        # Somatic hypermutation, run once per dark zone round. Cell accounting per clone:
+        #   n_muts    cells that mutate; ALL of them leave the parent clone
+        #   n_CDRs    of those, the fraction landing in a CDR (p_CDR). The remainder (n_FR)
+        #             are framework hits and are treated as deaths - they never return
+        #   of n_CDRs:  n_die     lethal, never return
+        #               n_silent  added back to the parent clone unchanged
+        #               n_affect  become new one-cell clones, then mutated in mutate_CDR()
+        #
+        # Tuning: p_mut sets how often cells mutate, p_CDR splits CDR vs framework, and
+        # p_CDR_lethal / p_CDR_silent set the fate of CDR hits (p_CDR_affect is derived in
+        # config/__init__.py as the remainder).
         print("=== Running SHM ===")
         """ Run somatic hypermutation and return self + new B cell clones. """
 
@@ -1209,6 +1337,10 @@ class BCell():
         self.div = np.concatenate([self.div, new_memory_cells.div])
 
     def prune(self):
+        # Drop every clone with nbs <= 0. All per-clone arrays must be filtered by the same
+        # mask to stay index-aligned; if you add a per-clone attribute to BCell, add it here
+        # (and to clone() and append_mem_cells()) or the arrays will silently desynchronise.
+        # self.alive is kept because run_binding_selection() reuses the mask afterwards.
         print("=== Pruning ===")
         """
         Prune the dead B Cell populations

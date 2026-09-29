@@ -1,3 +1,26 @@
+"""
+Top-level driver for an affinity maturation experiment.
+
+AffinityMaturation owns the whole experiment: it turns the config into antigen/antibody
+dictionaries, builds one GerminalCenter per `num_GCs`, and runs the injection series.
+
+Call graph:
+    run.py
+      +-- AffinityMaturation.run()             (this file)
+            +-- GerminalCenter.injection()     (lymph_node.py)  x num_GCs, per injection
+                  +-- GerminalCenter.run_GC_cycle()             repeated until the GC ends
+
+A GC finishes an injection when it goes extinct, exceeds its size cap, or depletes its
+antigen pool below 20%. GCs that went extinct are dropped before the next injection, so
+later injections run on fewer GCs than `num_GCs`.
+
+Where to make changes:
+  - How founders and antigens are assembled from the config -> build_Ab_Ag() below.
+    Founder names must end in `_<integer>`: lymph_node.py parses that trailing integer as
+    the parent_id used for per-founder ddG lookup in score.py.
+  - Everything the GC actually does -> lymph_node.py.
+"""
+
 import os
 import csv
 import sys

@@ -1,3 +1,26 @@
+"""
+Configuration loading and merging.
+
+A run's config is built in three layers, each overriding the one before it:
+
+    config/generic_config.json          defaults shared by every run
+    config/generic_<pathogen>.json      pathogen defaults, selected by the "pathogen" key
+    your --config JSON                  the experiment itself
+
+Two parameters are derived after merging and should not be set by hand:
+    p_CDR_affect = 1 - p_CDR_silent - p_CDR_lethal
+    p_exit       = 1 - p_recycle
+
+JSON comment convention: json.load cannot parse `//` comments, so any file actually loaded
+must stay comment-free. `generic_hiv.json` is the commented, human-readable reference;
+`generic_hiv_no_comments.json` is the one this module reads. Edit one, edit both. Your own
+experiment configs must likewise be plain JSON.
+
+Where to make changes:
+  - Adding a pathogen -> add generic_<pathogen>.json (and its no_comments twin) to this
+    directory, then add the name to the branch in get_generic_config() below.
+"""
+
 import os
 import json
 from copy import deepcopy

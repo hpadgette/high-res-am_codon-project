@@ -1,3 +1,38 @@
+"""
+Binding energy (dG) scoring functions.
+
+`scoring_function(score_config)` is the factory: it reads score_config['scoring_function']
+from the experiment JSON and returns the callable that B cells use to score a sequence.
+Lower (more negative) dG means tighter binding.
+
+Options:
+
+  "singlepoint"  Sum of precomputed single-point ddG values. Reads a CSV with columns
+                 (pos, mut, ddg) into a lookup table, sums the ddG of every amino acid
+                 difference between a clone and its founder, and adds the founder's
+                 reference dG (score_config['WT']). Fast enough for large sweeps, at the
+                 cost of assuming mutations are additive (no epistasis). Used for current work.
+
+  "ppdg"        The original atomistic route: build a homology model of the complex with
+                 Modeller from a PDB template, then predict dG with a trained regression
+                 model. Accurate but very slow, and depends on hardcoded cluster paths
+                 (RFSPP, CHARMM, /pl/active/...) that must be corrected for your environment.
+
+  "ppdx"         Placeholder, not implemented.
+
+Where to make changes:
+  - Choosing the method or swapping ddG tables -> "score_config" in your experiment JSON,
+    not here.
+  - Adding a new method -> subclass ScoringFunction, implement __call__, and register it in
+    score_dict below.
+
+Multiple founders: pass a list of ddG files. The lookup key for each is the trailing integer
+of its filename (e.g. VRC01_DSO_agDesign_3.csv -> 3), and that must match the founder's
+parent_id, which comes from the trailing integer of its name in "antibody_names". Files and
+the "WT" list are paired by position, so the two lists must be the same length and in the
+same order.
+"""
+
 from abc import ABC, abstractmethod
 from copy import deepcopy
 import sys, os, json, shutil
