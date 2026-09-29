@@ -1,9 +1,36 @@
 import os
+import random
 import click
+import numpy as np
 from config import get_exp_config
 from datetime import datetime
 from affinity import AffinityMaturation
 from copy import deepcopy
+
+
+def resolve_seed(config, cli_seed=None):
+    """
+    Decide the master RNG seed for this run, apply it, and record it in the config.
+
+    Precedence: --seed on the command line > "seed" in the config > freshly drawn.
+
+    Runs stay stochastic by default: with no seed given, one is drawn from OS entropy, so
+    replicates differ from each other as intended. The seed that was actually used is
+    written back into the config (and therefore into the saved config.json) and printed to
+    stdout, so any individual run can be repeated later if it needs a closer look.
+    """
+    seed = cli_seed
+    if seed is None:
+        seed = config['experiment'].get('seed')
+    if seed is None:
+        seed = int(np.random.SeedSequence().generate_state(1)[0])
+
+    seed = int(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    config['experiment']['seed'] = seed
+    return seed
+
 
 def run_AM(config):
     """
@@ -20,13 +47,19 @@ def run_AM(config):
 @click.command()
 @click.option('--config', default='', help='Path to the config file.')
 @click.option('--exp_name', default=None, help='Name of the experiment for log path.')
-def main(config, exp_name):
+@click.option('--seed', default=None, type=int,
+              help='Master RNG seed. Omit to draw a fresh one (recorded in the log and the saved config).')
+def main(config, exp_name, seed):
 
     config = config if config != '' else None
     config = get_exp_config(config)
-    
+
     if exp_name is not None:
         config['exp_name'] = exp_name
+
+    seed = resolve_seed(config, seed)
+    print("======= RNG seed: {} =======".format(seed))
+    print("To repeat this exact run: --seed {} (or add \"seed\": {} to the experiment block)".format(seed, seed))
 
     timestamp = datetime.now().strftime("_%Y-%m-%d-%H%M%S")
     if config['experiment']['logging']:

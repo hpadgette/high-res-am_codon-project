@@ -18,7 +18,8 @@ from score import scoring_function
 import h5py
 warnings.filterwarnings("ignore")
 
-np.random.seed()
+# NOTE: seeding is handled once in run.py (resolve_seed), so that the seed actually used
+# is recorded and the run can be repeated. Do not re-seed at import time here.
 
 class GerminalCenter(object):
 
@@ -999,13 +1000,15 @@ class BCell():
         """
         start1 = timer()
         global picked_list2
-        Fivemer = []
-        Fivemer_index = []
         
         residues = self.residues[-n_clones:]
         cln = 0
         for clone_residues in residues:
             clone_residues = clone_residues[0]
+            # Rebuilt per clone: if these persist across the loop, the 5mer pool accumulates
+            # and a clone can draw its mutation site/context from another clone's sequence.
+            Fivemer = []
+            Fivemer_index = []
             # print(clone_residues)
             for i in range(len(str(clone_residues))):  # Iterating over the entire sequence
                 if i < (len(str(clone_residues)) - 4):
@@ -1131,7 +1134,10 @@ class BCell():
         n_silent = outcomes[:, 1]
         n_affect = outcomes[:, 2]
         
-        self.nbs -= n_die 
+        # n_die is deliberately NOT subtracted here: `self.nbs -= n_muts` above already
+        # removed every mutating cell from the clone. Lethal mutants simply never return
+        # (neither do the n_FR framework mutants). Subtracting n_die again would kill an
+        # equal number of cells that never mutated.
         self.nbs += n_silent  # add silent mutations to the parent clone
         
         n_total = n_affect.sum() # number of new clones
