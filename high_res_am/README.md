@@ -95,7 +95,7 @@ one the loader reads. Edit one, edit both.
 | `num_GC_founders` | 10 | Founders seeding each GC |
 | `multiple_founders` | bool | Seed the GC with several *distinct* founder sequences, each scored on its own ΔΔG table |
 | `split_founders` | bool | Split the starting population across `num_GC_founders` copies of a *single* sequence |
-| `prob_metric` | 0 or list | Epitope weights for multi-epitope binding. Only consulted by `ppdg`; inert under `singlepoint` |
+| `prob_metric` | 0 or list | **Required** — the run fails with a `KeyError` if it's missing. Epitope weights for multi-epitope binding, e.g. `[0.6, 0.3, 0.1]`. Use `0` for a single Ag–Ab epitope pair (any non-list means epitope 0). Only consulted by `ppdg`; inert under `singlepoint` |
 | `revert` | false | Legacy memory-cell sampling. Keep `false` |
 
 `p_CDR_affect` (= 1 − `p_CDR_silent` − `p_CDR_lethal`) and `p_exit` (= 1 − `p_recycle`) are
