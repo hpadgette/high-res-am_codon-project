@@ -201,7 +201,7 @@
         "epsilon": 1e-16,
         "activation_energy": -10,
         "nb_trial": 1,
-        "pop_size": 200,
+        "pop_size": 100,
         "ag_start": 100000,
         "energy_scale": 0.9,
         "help_cutoff": 0.7,

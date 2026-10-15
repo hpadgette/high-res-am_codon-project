@@ -93,13 +93,26 @@ one the loader reads. Edit one, edit both.
 | `pop_size` | 100–200 | Starting B cell population per GC |
 | `ag_start` | 50k–100k | Size of the antigen pool at the start of an injection |
 | `num_GC_founders` | 10 | Founders seeding each GC |
-| `multiple_founders` | bool | Seed the GC with several *distinct* founder sequences, each scored on its own ΔΔG table |
-| `split_founders` | bool | Split the starting population across `num_GC_founders` copies of a *single* sequence |
+| `multiple_founders` | **true** | **Required** — seeds the GC founder population *and* computes each founder's starting ΔG from its sequence. Set `true` even for one founder; see warning below |
+| `split_founders` | false | **Required** — split the starting population across `num_GC_founders` copies of a *single* sequence. `false` unless you want that |
 | `prob_metric` | 0 or list | **Required** — the run fails with a `KeyError` if it's missing. Epitope weights for multi-epitope binding, e.g. `[0.6, 0.3, 0.1]`. Use `0` for a single Ag–Ab epitope pair (any non-list means epitope 0). Only consulted by `ppdg`; inert under `singlepoint` |
 | `revert` | false | Legacy memory-cell sampling. Keep `false` |
 
 `p_CDR_affect` (= 1 − `p_CDR_silent` − `p_CDR_lethal`) and `p_exit` (= 1 − `p_recycle`) are
 derived in `config/__init__.py`. Don't set them by hand.
+
+> **Set `multiple_founders: true` even for a single founder** (with `num_GC_founders: 1`).
+> The name is misleading: the flag gates the block in `BCell.__init__` that seeds the founder
+> population *and* computes each founder's ΔG from its sequence. With `false`, that block is
+> skipped and `__init__` falls through to `self.E = np.inf` — the founder enters the GC unable
+> to bind antigen, captures nothing, and dies within a cycle or two.
+>
+> The first symptom looks unrelated: `ValueError: zero-dimensional arrays cannot be
+> concatenated` in `append_mem_cells`, because the `memory_cells` placeholder's scalar `nbs`
+> is never converted to an array. That crash is a *symptom* — fix the flag, not `lymph_node.py`.
+>
+> Neither `multiple_founders` nor `split_founders` has a default in `generic_config.json`, so
+> both must appear in your experiment config or the run fails with a `KeyError`.
 
 ### Keys that look live but are not
 
@@ -107,7 +120,7 @@ These appear in the example configs and have **no effect** on a run:
 
 | Key | Why |
 |---|---|
-| `activation_energy` | Overridden in `GerminalCenter.__init__` as (weakest founder ΔG) + 0.75 kcal/mol |
+| `activation_energy` | Overridden in `GerminalCenter.__init__` as (weakest founder ΔG) + 0.75 kcal/mol. It tracks `WT` automatically, so leave the key out rather than setting a stale number. To change selection stringency, edit that line — a larger offset is more permissive |
 | `concentration` | Only read by the inactive `run_binding_selection_old()`. The live path uses `ag_left / ag_start` |
 | `flag` | Sets a local variable in `pick_memCells()` that is never read |
 | `cocktail` | Never read from the config |
@@ -156,6 +169,49 @@ noise on top and blur this separation.)
 - For head-to-head runs, set `multiple_founders: true` and pass the *same* ΔΔG file once per
   founder in `singlepoint_file`; `parent_id` is tracked through cloning, mutation, and the
   HDF5 log, so lineages can be attributed to a variant.
+
+## The CLK19gl → eOD-GT8 run (`codon-project/`)
+
+`codon-project/` holds this project's experiment config and the data it was derived from.
+Submit it from the inner `high_res_am/` directory, the same place `run.py` lives:
+
+```bash
+python -u -m run --config=codon-project/config_CLK19gl.json [--seed N]
+```
+
+| File | What it is |
+|---|---|
+| `config_CLK19gl.json` | The experiment config |
+| `CLK19_final_nt_sequences.fasta` | Source nt sequences (`gl`, plus `min`/`max` synonymous recodes) |
+| `CLK19_antibody_seq_derived.json` | The same sequences already split into the 12 config regions |
+| `tpl_CLK19gl_eOD-GT8_modeller.pdb` | Structure the ΔΔG table was computed on |
+| `CLK19_pipeline.ipynb`, `CLK19_segmentation_derivation.ipynb` | How the regions and segmentation were derived |
+
+Key settings and why:
+
+| Setting | Value | Note |
+|---|---|---|
+| `scoring_function` | `singlepoint` | AA-only energy, so synonymous variants share one landscape |
+| `singlepoint_file` | `singlepoint/CLK19gl_eOD-GT8_ddg.csv` | Relative, so it resolves identically locally and on the HPC |
+| `WT` | −12.257285857077804 | Germline reference ΔG, from `descriptors-med.json`. The CSV is ΔΔG *relative to this* |
+| `antibody_names` | `["CLK19gl_0"]` | The `_0` suffix is mandatory — it's parsed as `parent_id` |
+| `num_GC_founders` / `multiple_founders` | 1 / `true` | One founder, seeded properly. See the warning in the config reference |
+| `num_injections` | 1 | Prime-boost does not currently work |
+
+Derived values worth knowing: E_a = `WT` + 0.75 = **−11.507**, and the founder enters at
+−12.257. A healthy first cycle keeps the germline lineage alive, so `worst_E` in
+`cycle_logs/` should still equal `WT` early on; if the founder vanishes and `n_clones`
+collapses in cycle 1, check `multiple_founders` first.
+
+### Sequence ↔ structure mapping
+
+The AM reading frame is **HC 360 nt / 120 aa** and **LC 300 nt / 100 aa**, mapping 1:1 onto
+`tpl_CLK19gl_eOD-GT8_modeller.pdb` chain B 178–297 and chain C 401–500. The ΔΔG CSV covers
+224 positions; lookups use 0–219 over the HC+LC concatenation (`__call__` strips the `/`
+chain separator first), so positions 220–223 — the Cκ elbow past the reading frame — are
+never read. Verified by checking that the residue absent from each position's 19 mutations is
+exactly the WT residue at that position; a frame shift would break that pattern, which makes
+it a quick way to re-validate any new ΔΔG table against its sequence.
 
 ## Seeding and reproducibility
 
@@ -230,4 +286,11 @@ removed, since seeding now happens once in `run.py` where the value can be recor
   5-mer of every clone. Correct but slow; loading them once into a dict keyed by 5-mer would
   speed up large sweeps.
 - `pick_memCells` uses `np.int`, removed in NumPy >= 1.24. Reached only on multi-injection runs.
+- **`revert: true` is broken.** `run_recycle` calls `memory_cells.clone(residues, nbs)` at
+  `lymph_node.py:553`, but `clone()` takes `(residues, nbs, parent_ids)` — a `TypeError` at the
+  first recycle. Keep `revert: false`, the recommended setting, which is unaffected.
+- The `memory_cells` placeholder built in `GerminalCenter.__init__` (`residues=None`, `nbs=1`,
+  `E=inf`) is concatenated into the real memory pool on the first `append_mem_cells` call, so a
+  phantom clone sits in the pool. Harmless today — nothing reads the pool on single-injection
+  runs — but it must be cleared before prime-boost is revived, or `pick_memCells` can draw it.
 - `config/__init__.py` uses `collections.Mapping`, removed in Python 3.10.
