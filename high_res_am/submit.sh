@@ -1,15 +1,23 @@
 #!/bin/bash
-
-#SBATCH --qos=blanca-chbe-rdi
 #SBATCH --time=12:00:00
-#SBATCH --ntasks=4
-#SBATCH --job-name=AM_tune
+#SBATCH --qos=blanca-chbe-rdi
+#SBATCH --account=blanca-chbe-rdi
 #SBATCH --constraint="cascadelake"
-#SBATCH --output=final_tune.%j.out
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=32
+#SBATCH --job-name=gl-AM-test2
+#SBATCH --output=CLK19gl_eOD-GT8_AM_test2.%j.out
+#SBATCH --mail-type=FAIL,END
+#SBATCH --mail-user=hapa3524@colorado.edu
 
-source ~/.bashrc
+echo this is job $SLURM_JOBID
+echo $SLURM_NTASKS
+
+source ~/kayla-conda.sh
 conda activate cenv3_karplus
+
 export LC_LANG=en_US.utf-8
 export LANG=en_US.utf-8
+
 echo "we're running AM!"
-python -u -m run --config=config/config_example.json
+python -u -m run --config=codon-project/config_CLK19gl.json
