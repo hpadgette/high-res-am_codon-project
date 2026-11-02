@@ -476,58 +476,59 @@ class GerminalCenter(object):
     
     def run_help_selection(self):
         # LIGHT ZONE, part 2: rank clones by affinity and keep the best `help_cutoff` fraction
-        # of CELLS (not of clones). Clones sitting exactly on the threshold have a
-        # proportional share killed so the cut lands near the intended fraction. Raising
-        # help_cutoff keeps more cells alive, i.e. weaker selection.
+        # of CELLS (not of clones); the worst (1 - help_cutoff) receive no help and die.
+        # Raising help_cutoff keeps more cells alive, i.e. weaker selection.
+        #
+        # 2026-11-02: the cut used to be inverted. `sort` orders clones by DESCENDING dG, so
+        # the cumulative sum walks from the WORST binder up, and it must therefore be walked
+        # to the number of cells that should DIE, (1 - help_cutoff) * nb_tot, not to the
+        # number that should live. The old `cut_idx = help_cutoff * nb_tot` kept only the
+        # best ~(1 - help_cutoff) of cells, i.e. help_cutoff = 0.70 kept roughly the top 30%.
+        # Two further fixes here: the tie fraction is taken over the tie clones alone (it was
+        # divided by the whole population), and the cut is computed once instead of being
+        # recomputed after an intermediate prune(), which applied a second cull to the ties.
         print("=== Help Selection ===")
         """ Select B cells to receive T cell help. """
         binding_energies = self.B_cells.E
-        
-        
+
         binding_energies = np.array(binding_energies)
-        sort = np.argsort(binding_energies)[::-1]
+        sort = np.argsort(binding_energies)[::-1]  # descending dG: worst binders first
 
         sorted_binding_energies = binding_energies[sort]
         sorted_nbs = self.B_cells.nbs[sort]
-        
+
         nb_tot = self.B_cells.nbs.sum()
         if nb_tot > 0:
-            cut_idx = int(self.help_cutoff * nb_tot) - 1
-            energy_idx = np.argmax(np.cumsum(sorted_nbs) > cut_idx)
-            # Returns index of first instance in which cumulative sum of nbs is greater than the cutoff value
+            # Number of cells that should NOT receive help, counted from the worst binder up.
+            n_kill = nb_tot - int(self.help_cutoff * nb_tot)
+            if n_kill <= 0:
+                return
+
+            # First clone at which the running total of the worst cells reaches n_kill. The
+            # cut falls inside this clone, so it is the one that is only partially killed.
+            energy_idx = np.argmax(np.cumsum(sorted_nbs) >= n_kill)
             energy_cutoff = sorted_binding_energies[energy_idx]
 
-            # Kill all B cells below threshold
+            # Everything strictly worse than the threshold dies outright.
             dies = binding_energies > energy_cutoff
+            n_killed_outright = self.B_cells.nbs[dies].sum()
             self.B_cells.nbs[dies] = 0
 
-            # JGF 12/14/23: Something seems to be causing issues with the cut_idx because we don't prune, and
-            # it's adding to the ties not taking away from them...
-            
-            # Pruning dead B Cells
-            self.B_cells.prune()
-            # self.test_state()
-            # Recomputing the cut_idx
-            nb_tot = self.B_cells.nbs.sum()
-            cut_idx = int(self.help_cutoff * nb_tot) - 1
-            binding_energies = self.B_cells.E
-            # Kill a fraction of B cells exactly at threshold
-            # Tie deaths are split evenly across all clones exactly at threshold
+            # Clones sitting exactly at the threshold share the remainder of the kill,
+            # proportionally to their size.
             ties = binding_energies == energy_cutoff
-            print("ties: ", ties)
-            print("cut_idx: ", cut_idx)
-            n_die_tie = self.B_cells.nbs.sum() - cut_idx
-            print("n_die_tie: ", n_die_tie)
-            # Total number of cells to remove for clones exactly at threshold
-            fraction_die_tie = n_die_tie / self.B_cells.nbs.sum()
-            print("fraction_die_tie: ", fraction_die_tie)
-            print("total nbs pre tiedie: ", self.B_cells.nbs)
-            print("nbs pre tiedie: ", self.B_cells.nbs[ties])
-            # Fraction of cells to remove for each clone exactly at threshold
-            self.B_cells.nbs[ties] = np.multiply(self.B_cells.nbs[ties], (1 - fraction_die_tie), casting="unsafe")
-            print("nbs post tiedie: ", self.B_cells.nbs[ties])
-            # Note: Can't use *= because we're multiplying an int by a float
-            print("multiplication for tiedie", np.multiply(self.B_cells.nbs[ties], (1 - fraction_die_tie), casting="unsafe"))
+            nbs_tie = self.B_cells.nbs[ties].sum()
+            n_die_tie = n_kill - n_killed_outright
+            if nbs_tie > 0 and n_die_tie > 0:
+                fraction_die_tie = min(n_die_tie / nbs_tie, 1.0)
+                # Note: Can't use *= because we're multiplying an int by a float
+                self.B_cells.nbs[ties] = np.multiply(
+                    self.B_cells.nbs[ties], (1 - fraction_die_tie), casting="unsafe")
+
+            nb_kept = self.B_cells.nbs.sum()
+            print("help selection: kept {} / {} cells ({:.1%}), dG cutoff {:.4f}".format(
+                nb_kept, nb_tot, nb_kept / nb_tot, energy_cutoff))
+
             self.B_cells.prune()
 
     def run_recycle(self):

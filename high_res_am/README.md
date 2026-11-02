@@ -280,6 +280,51 @@ removed, since seeding now happens once in `run.py` where the value can be recor
 `numpy` and the stdlib `random` module are seeded — `random` is used for epitope selection in
 `BCell.energy`. Behavior is unchanged when no seed is given, other than being recorded.
 
+### 4. `run_help_selection`: invert the cut so the *best* `help_cutoff` fraction survives (`lymph_node.py`)
+
+`help_cutoff` is documented as the fraction of cells surviving T cell help, but the cut was
+computed from the wrong end of the distribution. `np.argsort(binding_energies)[::-1]` orders
+clones by *descending* ΔG — worst binder first — so walking the cumulative sum to
+`help_cutoff * nb_tot` lands the threshold at the 70th percentile counting up from the bottom.
+The result was that `help_cutoff = 0.70` kept roughly the top 30% and killed the rest.
+
+The cumulative sum is now walked to the number of cells that should *die*:
+
+```python
+n_kill = nb_tot - int(self.help_cutoff * nb_tot)
+energy_idx = np.argmax(np.cumsum(sorted_nbs) >= n_kill)
+```
+
+Two further errors in the tie handling are fixed at the same time:
+
+- `fraction_die_tie` divided the outstanding deaths by the *whole* surviving population rather
+  than by the clones sitting exactly at the threshold, so the tie clones were scaled by a
+  fraction that had nothing to do with their own size.
+- The method pruned and recomputed `cut_idx` between the two stages, so the remainder was
+  measured against an already-culled population and the tie clones took a second cull of
+  roughly `1 - help_cutoff` on top of the first. The `JGF 12/14/23` comment in the file was
+  someone noticing this; it is removed along with the intermediate `prune()`.
+
+Checked against a pure-Python replica of both versions, ten clones of 100 cells with ΔG from
+−20 to −11:
+
+| `help_cutoff` | kept before | kept after |
+| --- | --- | --- |
+| 0.30 | 80% | 30% |
+| 0.70 | 40% | 70% |
+| 0.90 | 20% | 90% |
+
+In every case the survivors are now strictly the tighter binders. Also guarded
+`help_cutoff >= 1.0` (nothing dies) and an empty tie set, and replaced the seven per-cycle
+debug prints with one summary line reporting cells kept, the fraction, and the ΔG cutoff.
+
+> Note: this affects selection strength in **every** cycle of **every** run, so results
+> generated on this branch before this fix — including the `codon-project/` CLK19gl runs — are
+> not comparable to runs made after it. The pre-fix code is present on every feature branch and
+> on `origin/main`, though `main` has it wrong in the opposite direction: `main` keeps 70% of
+> cells but selects the *weakest* binders, since its kill mask is `binding_energies <
+> energy_cutoff`.
+
 ## Known issues, not addressed
 
 - `Mutability.csv` and `Substitution.csv` are re-read from disk and scanned linearly for every
