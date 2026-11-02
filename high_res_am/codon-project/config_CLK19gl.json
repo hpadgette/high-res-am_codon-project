@@ -1,11 +1,11 @@
 {
     "experiment" : {
         "logging" : true,
-        "exp_name" : "CLK19gl_eODGT8_replicate_1",
+        "exp_name" : "CLK19gl_eODGT8_test3",
         "log_level" : ["injection", "cycles", "B Cell"],
         "num_GCs" : 1,
         "num_injections" : 1,
-        "seed" : null,
+        "seed" : 4148239611,
         "revert" : false,
         "debug" : 0,
         "score_config": {
@@ -58,14 +58,14 @@
         "p_CDR_lethal" : 0.30,
         "p_CDR_silent" : 0.00,
         "p_recycle" : 0.70,
-        "p_scale": 0.25,
+        "p_scale": 1.0,
         "num_GC_founders" : 1,
         "split_founders" : false,
         "multiple_founders" : true,
         "epsilon" : 1e-16,
         "nb_trial" : 1,
         "pop_size" : 100,
-        "ag_start" : 100000,
+        "ag_start" : 400000,
         "energy_scale" : 0.9,
         "help_cutoff" : 0.70,
         "prob_metric" : 0

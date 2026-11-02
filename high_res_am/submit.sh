@@ -5,8 +5,8 @@
 #SBATCH --constraint="cascadelake"
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
-#SBATCH --job-name=gl-AM-test2
-#SBATCH --output=CLK19gl_eOD-GT8_AM_test2.%j.out
+#SBATCH --job-name=gl-AM-test3
+#SBATCH --output=CLK19gl_eOD-GT8_AM_test3.%j.out
 #SBATCH --mail-type=FAIL,END
 #SBATCH --mail-user=hapa3524@colorado.edu
 
