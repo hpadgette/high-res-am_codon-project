@@ -7,7 +7,7 @@ targeting/substitution model all follow the published version.
 
 ## Key changes from the published model
 
-Two substantive changes were made to the published model before this branch:
+Two substantive changes are made to the published model with this branch:
 
 **1. Sum-of-single-points (SSP) ΔΔG scoring** (`score.py`, `singlepoint/`)
 
